@@ -1,92 +1,83 @@
 # Salthub Report Card
 
-Salthub Report Card is a Vercel-friendly Next.js App Router application for ingesting SaltHub exports, validating them, normalizing them into typed internal models, and previewing narrative report-card briefs for multiple audiences.
+Salthub Report Card is a simplified first-use Next.js app for testing SaltHub export uploads. The current primary flow is:
 
-## Current scope
+1. upload SaltHub exports
+2. validate the files
+3. generate a report
+4. review the preview
 
-Phase 1 foundation includes:
+This build is intentionally lightweight. It does not center approval workflows, publishing flows, historical complexity, analytics JSON ingestion, or friction-note operations.
 
-- Multi-file upload for CSV and JSON
-- Schema detection and validation for supported SaltHub exports
-- In-browser normalization into typed internal models
-- Dataset preview and validation summary
-- Audience-specific report-card previews for User, Manager, Leader, Department Lead, and ELT
-- Deterministic score bands with print-friendly rendering
+## Supported upload types
 
-Phase 2 currently includes:
+The current first-use flow focuses on Action Logs and Downloads exports from the existing SaltHub product.
 
-- Friction-note ingestion from CSV and JSON
-- Deterministic friction-note normalization and audience-scoped rollups
-- Theme grouping and ranking with frequency / breadth prioritization
-- Manager quote-block rendering with empty state when no note exists
-- Leader aggregated top-theme summaries
-- Department Lead top three friction themes with `Platform` / `Capability` / `Behavioral` labels
-- ELT bottleneck summary plus evidence-gated decisions / asks
-- Privacy guardrails to avoid raw IDs, emails, and overexposed raw note content
-
-Phase 3 currently includes:
-
-- File-backed persistence for local development with a production-ready server-side persistence abstraction
-- Authenticated access with role-based workflow gates for `admin`, `uploader`, `reviewer`, and `publisher`
-- Persisted upload batches, uploaded file metadata, report versions, review actions, and audit events
-- Reporting period model with historical comparison notes in generated report versions
-- Draft generation, approval, publishing, and versioned regeneration
-- Separate web preview and email-safe HTML renderer
-- Grounded narrative provider abstraction layered on top of deterministic report building
-- SaltHub-style neutral enterprise application shell instead of the earlier editorial prototype layout
-
-Still intentionally deferred:
-
-- External production database adapter wiring such as Vercel Postgres / Blob or Supabase credentials
-- Direct email send integration
-- Full provider-backed LLM implementation beyond the deterministic grounded provider
-- The missing HTML/CSS/DOCX reference assets, which still were not present in the workspace
-
-## Supported files
-
-Supported CSV files:
+Supported Action Logs files:
 
 - `action_logs.csv`
+- `action_logs.xls`
+- `action_logs.xlsx`
+
+Required Action Logs columns:
+
+- CSV: `id`, `user_email`, `action`, `created`, `payload`
+- Excel logical columns: `ID`, `User Email`, `Action`, `Created`, `Payload`
+
+Supported Downloads files:
+
 - `project_fees_by_department_by_month.csv`
+- Excel equivalent (`.xls`, `.xlsx`)
 - `department_breakdown_report.csv`
+- Excel equivalent (`.xls`, `.xlsx`)
 - `client_summary_report.csv`
-- `friction_notes.csv`
-- User directory CSV with `email` and optional hierarchy fields
+- Excel equivalent (`.xls`, `.xlsx`)
 
-Supported JSON files:
+Required Downloads columns:
 
-- Friction notes JSON with a top-level `friction_notes` or `notes` array, or a raw array of canonical note records
-- User directory JSON with a top-level `users` array, or a raw array of user objects
-- Analytics payload JSON with `users`, `managers`, `summary`, and/or `metadata`
+`project_fees_by_department_by_month`
+- `Project Code`
+- `Client`
+- `Program Name`
+- `Start Month`
+- `End Month`
+- `Status`
+- `Total Fees`
+- all columns after `Total Fees` are treated as dynamic department allocation columns
 
-Unsupported CSV/JSON uploads fail gracefully with explicit messages in the UI.
+`department_breakdown_report`
+- `Department`
+- `Total Fees`
+- `% of Total`
 
-## Authentication
+`client_summary_report`
+- `Client`
+- `Total Projects`
+- `Total Fees`
+- `Total Revenue`
 
-The current implementation ships with local demo accounts for development:
+## What the UI does
 
-- `admin@salthub.local` / `admin123`
-- `uploader@salthub.local` / `upload123`
-- `reviewer@salthub.local` / `review123`
-- `publisher@salthub.local` / `publish123`
+The main page keeps the initial experience simple:
 
-Sessions are stored server-side and sent through an HTTP-only cookie.
+- file upload
+- file validation
+- uploaded file list with detected type
+- Generate Report button
+- report preview
+
+If some files are missing, the report still generates from the available accepted uploads and notes what is missing.
 
 ## Architecture
 
-The app is organized for later extension rather than a one-off upload page:
+The code stays modular even though the UI is simple:
 
-- `src/ingestion/`: file-format detection and CSV/JSON parsing
-- `src/schemas/`: Zod contracts for supported inputs
-- `src/normalization/`: conversion from raw uploads into normalized dataset models
-- `src/derivation/`: deterministic score, comparison, and friction-theme derivation
-- `src/reporting/`: audience options and report view-model builders
-- `src/templates/`: browser preview renderers aligned to future email-safe adaptation
-- `src/qa/`: report-level quality checks
-- `src/ui/`: upload workflow, validation views, and report previews
-- `src/lib/`: shared types and formatting helpers
-- `src/lib/server/`: persistence, auth, workflow orchestration, and renderer/provider abstractions
-- `src/app/api/`: route handlers for login, uploads, report generation, workflow transitions, and email export
+- `src/ingestion/`: CSV and Excel parsing, file detection, upload processing
+- `src/schemas/`: Zod validation contracts
+- `src/normalization/`: normalized internal models
+- `src/reporting/`: simplified report builder
+- `src/ui/`: first-use upload and preview experience
+- `src/lib/`: shared domain types and formatting
 
 ## Local development
 
@@ -97,8 +88,6 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Local persistence writes to `data/`, which is gitignored.
-
 Useful commands:
 
 ```bash
@@ -107,30 +96,9 @@ npm run test
 npm run build
 ```
 
-## Deploy to Vercel
-
-1. Push the repository to GitHub.
-2. Import the repository into Vercel.
-3. Use the default Next.js build settings.
-4. Deploy.
-
-No external database or secret configuration is required for local development.
-For real production persistence on Vercel, swap the local adapter in `src/lib/server/store.ts` for a Postgres/Blob-backed implementation.
-
-## Assumptions
-
-- The repository did not contain the referenced HTML/CSS/DOCX support files at implementation time.
-- Uploaded data is persisted locally through a file-backed adapter during development.
-- Authentication is implemented as a local credential/session system and should be replaced or federated for real production identity.
-- Analytics JSON shape is intentionally flexible and normalized conservatively.
-- Score formulas are provisional, but the score/band/label separation is stable.
-- Deterministic theme grouping uses conservative keyword/rule matching as the pre-LLM foundation.
-
 ## Notes
 
-- Dynamic department columns are supported for `project_fees_by_department_by_month.csv`.
-- Missing upstream sources remain explicit in the UI and are not backfilled with fake data.
-- Manager friction sections only render the manager's own note or a safe empty state.
-- Leader, Department Lead, and ELT friction sections render only when actual friction-note data exists.
-- Generated narratives are optional and grounded; deterministic metrics remain the source of truth.
-- Regeneration creates a new report version instead of overwriting the existing published history.
+- Department allocation columns are parsed dynamically and are not hardcoded.
+- Unsupported files are rejected with friendly validation messages.
+- Empty files are rejected.
+- The current report is generated only from uploaded SaltHub exports in the browser session.

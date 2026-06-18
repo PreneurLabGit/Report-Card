@@ -11,6 +11,7 @@ import {
 } from "@/schemas/contracts";
 import { parseCsvText } from "@/ingestion/csv";
 import { detectCsvKind, detectFormat, detectJsonKind } from "@/ingestion/detect";
+import { parseExcelFile } from "@/ingestion/excel";
 import { parseJsonText } from "@/ingestion/json";
 import type {
   FileKind,
@@ -154,9 +155,9 @@ function mapFrictionNote(input: {
 }
 
 export async function processUpload(file: File): Promise<ProcessedUpload> {
-  const text = await file.text();
   const format = detectFormat(file.name);
-  const hash = await hashText(`${file.name}:${file.size}:${text.slice(0, 1000)}`);
+  const hashSeed = format === "excel" ? `${file.name}:${file.size}:excel` : `${file.name}:${file.size}:${(await file.text()).slice(0, 1000)}`;
+  const hash = await hashText(hashSeed);
   const messages: ValidationMessage[] = [];
   let rowCount = 0;
   let kind: FileKind = "unsupported";
@@ -168,6 +169,110 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
     rowCount,
     hash,
   };
+
+  if (format === "excel") {
+    const parsed = await parseExcelFile(file);
+    rowCount = parsed.rows.length;
+    messages.push(...parsed.messages);
+    kind = detectCsvKind(file.name.replace(/\.(xls|xlsx)$/i, ".csv"), parsed.headers);
+
+    if (parsed.rows.length === 0) {
+      return {
+        artifact: {
+          ...artifactBase,
+          detectedKind: kind,
+          status: "error",
+          messages,
+          rowCount,
+        },
+        kind,
+      };
+    }
+
+    const virtualCsvText = ""; // unused for excel path, keeps flow aligned below
+    void virtualCsvText;
+
+    switch (kind) {
+      case "action_logs": {
+        messages.push(...buildMessages(["id", "user_email", "action", "created", "payload"], parsed.headers, false));
+        const actionLogs = parsed.rows
+          .map((row) => actionLogCsvSchema.safeParse({ ...row, payload: parseMaybeJson(row.payload ?? "") }))
+          .flatMap((result) => (result.success ? [result.data] : []));
+
+        return {
+          artifact: { ...artifactBase, detectedKind: kind, status: messages.some((item) => item.level === "error") ? "error" : "validated", messages, rowCount },
+          kind,
+          actionLogs,
+        };
+      }
+      case "project_fees_by_department_by_month": {
+        messages.push(
+          ...buildMessages(
+            ["Project Code", "Client", "Program Name", "Start Month", "End Month", "Status", "Total Fees"],
+            parsed.headers,
+            true,
+          ),
+        );
+        const projectFeesByDepartment = parsed.rows.map(parseProjectRow).filter(Boolean) as RawProjectFeesByDepartmentRow[];
+        return {
+          artifact: { ...artifactBase, detectedKind: kind, status: messages.some((item) => item.level === "error") ? "error" : "validated", messages, rowCount },
+          kind,
+          projectFeesByDepartment,
+        };
+      }
+      case "department_breakdown_report": {
+        messages.push(...buildMessages(["Department", "Total Fees", "% of Total"], parsed.headers, false));
+        const departmentBreakdown = parsed.rows
+          .map((row) => departmentBreakdownSchema.safeParse(row))
+          .flatMap((result) =>
+            result.success
+              ? [{ department: result.data.Department, totalFees: result.data["Total Fees"], percentOfTotal: result.data["% of Total"] } satisfies RawDepartmentBreakdownRow]
+              : [],
+          );
+        return {
+          artifact: { ...artifactBase, detectedKind: kind, status: messages.some((item) => item.level === "error") ? "error" : "validated", messages, rowCount },
+          kind,
+          departmentBreakdown,
+        };
+      }
+      case "client_summary_report": {
+        messages.push(...buildMessages(["Client", "Total Projects", "Total Fees", "Total Revenue"], parsed.headers, false));
+        const clientSummaries = parsed.rows
+          .map((row) => clientSummarySchema.safeParse(row))
+          .flatMap((result) =>
+            result.success
+              ? [{ client: result.data.Client, totalProjects: result.data["Total Projects"], totalFees: result.data["Total Fees"], totalRevenue: result.data["Total Revenue"] } satisfies RawClientSummaryRow]
+              : [],
+          );
+        return {
+          artifact: { ...artifactBase, detectedKind: kind, status: messages.some((item) => item.level === "error") ? "error" : "validated", messages, rowCount },
+          kind,
+          clientSummaries,
+        };
+      }
+      default:
+        return {
+          artifact: {
+            ...artifactBase,
+            detectedKind: "unsupported",
+            status: "unsupported",
+            messages: [
+              ...messages,
+              {
+                level: "error",
+                code: "unsupported_excel",
+                message:
+                  "Unsupported Excel schema. Supported Excel uploads are action logs, project fees by department, department breakdown, and client summary exports.",
+              },
+            ],
+            rowCount,
+          },
+          kind: "unsupported",
+        };
+    }
+  }
+
+  const text = await file.text();
 
   if (!text.trim()) {
     return {
@@ -485,7 +590,7 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
         {
           level: "error",
           code: "unsupported_file_type",
-          message: "Only CSV and JSON uploads are supported in Phase 1.",
+          message: "Only CSV and Excel uploads are supported in this first-use phase.",
         },
       ],
       rowCount: 0,

@@ -19,6 +19,10 @@ export function detectFormat(name: string): ParseFormat {
     return "csv";
   }
 
+  if (lower.endsWith(".xls") || lower.endsWith(".xlsx")) {
+    return "excel";
+  }
+
   if (lower.endsWith(".json")) {
     return "json";
   }

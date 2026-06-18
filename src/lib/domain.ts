@@ -8,7 +8,7 @@ export type FileKind =
   | "analytics_payload"
   | "unsupported";
 
-export type ParseFormat = "csv" | "json" | "unknown";
+export type ParseFormat = "csv" | "excel" | "json" | "unknown";
 
 export type ValidationLevel = "info" | "warning" | "error";
 
@@ -216,4 +216,18 @@ export interface AudienceOption {
   audience: ReportAudience;
   label: string;
   subjectId?: string;
+}
+
+export interface SimpleReportSection {
+  title: string;
+  bullets: string[];
+  emptyState?: string;
+}
+
+export interface SimpleGeneratedReport {
+  title: string;
+  generatedAt: string;
+  summaryCards: Array<{ label: string; value: string; detail?: string }>;
+  sections: SimpleReportSection[];
+  missingInputs: string[];
 }

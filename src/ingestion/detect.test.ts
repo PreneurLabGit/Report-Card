@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { detectCsvKind, detectJsonKind } from "@/ingestion/detect";
+import { detectCsvKind, detectFormat, detectJsonKind } from "@/ingestion/detect";
 
 describe("detectCsvKind", () => {
   it("detects action logs by headers", () => {
@@ -34,5 +34,11 @@ describe("detectJsonKind", () => {
 
   it("detects friction note json shape", () => {
     expect(detectJsonKind({ friction_notes: [] })).toBe("friction_notes");
+  });
+});
+
+describe("detectFormat", () => {
+  it("detects excel uploads", () => {
+    expect(detectFormat("action_logs.xlsx")).toBe("excel");
   });
 });
