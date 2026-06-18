@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+import { ReadOnlyStoreError } from "@/lib/server/errors";
 import type { PersistedAppState } from "@/lib/server/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -55,32 +56,87 @@ function buildDefaultState(): PersistedAppState {
   };
 }
 
-async function ensureStore() {
-  await mkdir(DATA_DIR, { recursive: true });
-  await mkdir(BLOBS_DIR, { recursive: true });
+export interface StorageAdapter {
+  mode: "local-file" | "seed-readonly";
+  writable: boolean;
+  readState(): Promise<PersistedAppState>;
+  writeState(state: PersistedAppState): Promise<void>;
+  saveBlob(name: string, contents: string): Promise<string>;
+}
 
-  try {
-    await readFile(STATE_PATH, "utf8");
-  } catch {
-    await writeFile(STATE_PATH, JSON.stringify(buildDefaultState(), null, 2), "utf8");
+class LocalFileStorageAdapter implements StorageAdapter {
+  mode = "local-file" as const;
+  writable = true;
+
+  private async ensureStore() {
+    await mkdir(DATA_DIR, { recursive: true });
+    await mkdir(BLOBS_DIR, { recursive: true });
+
+    try {
+      await readFile(STATE_PATH, "utf8");
+    } catch {
+      await writeFile(STATE_PATH, JSON.stringify(buildDefaultState(), null, 2), "utf8");
+    }
+  }
+
+  async readState() {
+    await this.ensureStore();
+    const raw = await readFile(STATE_PATH, "utf8");
+    return JSON.parse(raw) as PersistedAppState;
+  }
+
+  async writeState(state: PersistedAppState) {
+    await this.ensureStore();
+    await writeFile(STATE_PATH, JSON.stringify(state, null, 2), "utf8");
+  }
+
+  async saveBlob(name: string, contents: string) {
+    await this.ensureStore();
+    const blobName = `${Date.now()}-${randomUUID()}-${name}`;
+    const blobPath = path.join(BLOBS_DIR, blobName);
+    await writeFile(blobPath, contents, "utf8");
+    return blobPath;
   }
 }
 
+class SeedReadOnlyStorageAdapter implements StorageAdapter {
+  mode = "seed-readonly" as const;
+  writable = false;
+
+  async readState() {
+    return buildDefaultState();
+  }
+
+  async writeState() {
+    throw new ReadOnlyStoreError();
+  }
+
+  async saveBlob(_name: string, _contents: string): Promise<string> {
+    void _name;
+    void _contents;
+    throw new ReadOnlyStoreError();
+  }
+}
+
+let adapter: StorageAdapter | null = null;
+
+export function getStorageAdapter() {
+  if (adapter) {
+    return adapter;
+  }
+
+  adapter = process.env.NODE_ENV === "production" ? new SeedReadOnlyStorageAdapter() : new LocalFileStorageAdapter();
+  return adapter;
+}
+
 export async function readState() {
-  await ensureStore();
-  const raw = await readFile(STATE_PATH, "utf8");
-  return JSON.parse(raw) as PersistedAppState;
+  return getStorageAdapter().readState();
 }
 
 export async function writeState(state: PersistedAppState) {
-  await ensureStore();
-  await writeFile(STATE_PATH, JSON.stringify(state, null, 2), "utf8");
+  return getStorageAdapter().writeState(state);
 }
 
 export async function saveBlob(name: string, contents: string) {
-  await ensureStore();
-  const blobName = `${Date.now()}-${randomUUID()}-${name}`;
-  const blobPath = path.join(BLOBS_DIR, blobName);
-  await writeFile(blobPath, contents, "utf8");
-  return blobPath;
+  return getStorageAdapter().saveBlob(name, contents);
 }

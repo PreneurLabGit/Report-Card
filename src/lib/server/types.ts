@@ -107,6 +107,10 @@ export interface PersistedAppState {
 
 export interface AppStatePayload {
   currentUser: Omit<AuthUser, "password">;
+  storage: {
+    mode: "local-file" | "seed-readonly";
+    writable: boolean;
+  };
   periods: ReportingPeriodRecord[];
   uploadBatches: Array<{
     id: string;

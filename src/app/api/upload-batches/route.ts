@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/server/guards";
+import { handleRouteError } from "@/lib/server/http";
 import { createUploadBatch } from "@/lib/server/workflow";
 
 export async function POST(request: Request) {
@@ -21,11 +22,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "At least one file is required." }, { status: 400 });
   }
 
-  const batchId = await createUploadBatch({
-    periodId,
-    uploaderUserId: auth.user.id,
-    files: fileEntries,
-  });
+  try {
+    const batchId = await createUploadBatch({
+      periodId,
+      uploaderUserId: auth.user.id,
+      files: fileEntries,
+    });
 
-  return NextResponse.json({ batchId });
+    return NextResponse.json({ batchId });
+  } catch (error) {
+    return handleRouteError(error);
+  }
 }

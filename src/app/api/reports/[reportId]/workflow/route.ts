@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/server/guards";
+import { handleRouteError } from "@/lib/server/http";
 import { transitionReportVersion } from "@/lib/server/workflow";
 
 export async function POST(
@@ -19,11 +20,15 @@ export async function POST(
     return NextResponse.json({ error: "action is required." }, { status: 400 });
   }
 
-  await transitionReportVersion({
-    reportId,
-    actorUserId: auth.user.id,
-    action: body.action,
-  });
+  try {
+    await transitionReportVersion({
+      reportId,
+      actorUserId: auth.user.id,
+      action: body.action,
+    });
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return handleRouteError(error);
+  }
 }

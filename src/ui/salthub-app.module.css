@@ -100,6 +100,15 @@
   cursor: pointer;
 }
 
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.linkButton:disabled,
+.tabButton:disabled,
+.tabActive:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .primaryButton {
   background: #2563eb;
   color: #fff;
@@ -170,6 +179,24 @@
   position: sticky;
   top: 0;
   z-index: 10;
+}
+
+.banner {
+  width: min(1440px, calc(100vw - 32px));
+  margin: 16px auto 0;
+  padding: 12px 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  display: grid;
+  gap: 4px;
+}
+
+.bannerError {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .headerActions,

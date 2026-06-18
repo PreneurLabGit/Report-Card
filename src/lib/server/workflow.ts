@@ -5,7 +5,7 @@ import { buildReportViewModel } from "@/reporting/build-report";
 import { buildAudienceOptions } from "@/reporting/options";
 import { renderReportEmailHtml } from "@/lib/server/report-renderers";
 import { getNarrativeProvider } from "@/lib/server/llm";
-import { readState, saveBlob, writeState } from "@/lib/server/store";
+import { getStorageAdapter, readState, saveBlob, writeState } from "@/lib/server/store";
 import type { AppStatePayload, ReportWorkflowState, UploadedFileRecord } from "@/lib/server/types";
 import type { ProcessedUpload } from "@/ingestion/process-upload";
 import { processUpload } from "@/ingestion/process-upload";
@@ -20,6 +20,10 @@ export async function loadAppStatePayload(currentUserId: string): Promise<AppSta
 
   return {
     currentUser: sanitizeUser(user),
+    storage: {
+      mode: getStorageAdapter().mode,
+      writable: getStorageAdapter().writable,
+    },
     periods: state.periods,
     uploadBatches: state.uploadBatches.map((batch) => ({
       id: batch.id,

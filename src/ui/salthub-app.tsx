@@ -42,6 +42,7 @@ function statusClass(status: string) {
 export function SalthubApp() {
   const [appState, setAppState] = useState<AppStatePayload | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [actionError, setActionError] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
   const [selectedReportId, setSelectedReportId] = useState<string>("");
@@ -116,10 +117,16 @@ export function SalthubApp() {
     }
 
     startTransition(async () => {
+      setActionError("");
       const formData = new FormData();
       formData.append("periodId", selectedPeriodId);
       Array.from(selectedFiles).forEach((file) => formData.append("files", file));
-      await fetch("/api/upload-batches", { method: "POST", body: formData });
+      const response = await fetch("/api/upload-batches", { method: "POST", body: formData });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        setActionError(payload.error ?? "Upload failed.");
+        return;
+      }
       setSelectedFiles(null);
       await refreshState();
     });
@@ -131,7 +138,8 @@ export function SalthubApp() {
     }
 
     startTransition(async () => {
-      await fetch("/api/reports/generate", {
+      setActionError("");
+      const response = await fetch("/api/reports/generate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -141,6 +149,11 @@ export function SalthubApp() {
           subjectId: report?.subjectId,
         }),
       });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        setActionError(payload.error ?? "Draft generation failed.");
+        return;
+      }
       await refreshState();
     });
   }
@@ -151,11 +164,17 @@ export function SalthubApp() {
     }
 
     startTransition(async () => {
-      await fetch(`/api/reports/${activeReport.id}/workflow`, {
+      setActionError("");
+      const response = await fetch(`/api/reports/${activeReport.id}/workflow`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action }),
       });
+      if (!response.ok) {
+        const payload = (await response.json()) as { error?: string };
+        setActionError(payload.error ?? "Workflow transition failed.");
+        return;
+      }
       await refreshState();
     });
   }
@@ -245,6 +264,7 @@ export function SalthubApp() {
   }
 
   const currentPeriod = appState.periods.find((period) => period.id === selectedPeriodId) ?? appState.periods[0];
+  const isReadOnly = !appState.storage.writable;
 
   return (
     <main className={styles.appPage}>
@@ -262,6 +282,23 @@ export function SalthubApp() {
           {/* Demo sign-out is intentionally hidden while auth bypass is enabled. */}
         </div>
       </header>
+
+      {isReadOnly ? (
+        <section className={styles.banner}>
+          <strong>Read-only production mode</strong>
+          <span>
+            This deployment is using seeded in-memory data until persistent storage is wired. Upload, generate, approve,
+            and publish actions are disabled.
+          </span>
+        </section>
+      ) : null}
+
+      {actionError ? (
+        <section className={`${styles.banner} ${styles.bannerError}`}>
+          <strong>Action failed</strong>
+          <span>{actionError}</span>
+        </section>
+      ) : null}
 
       <section className={styles.contentGrid}>
         <div className={styles.leftRail}>
@@ -288,7 +325,7 @@ export function SalthubApp() {
                 Upload files
                 <input type="file" multiple accept=".csv,.json" onChange={(event) => setSelectedFiles(event.target.files)} />
               </label>
-              <button type="submit" className={styles.primaryButton} disabled={isPending || !selectedFiles}>
+              <button type="submit" className={styles.primaryButton} disabled={isPending || !selectedFiles || isReadOnly}>
                 {isPending ? "Processing..." : "Upload batch"}
               </button>
             </form>
@@ -386,7 +423,7 @@ export function SalthubApp() {
                   />
                   Enable grounded narrative layer
                 </label>
-                <button type="button" className={styles.primaryButton} onClick={() => void generateDrafts()}>
+                <button type="button" className={styles.primaryButton} disabled={isReadOnly} onClick={() => void generateDrafts()}>
                   Generate drafts for period
                 </button>
               </div>
@@ -422,6 +459,7 @@ export function SalthubApp() {
                             <button
                               type="button"
                               className={styles.linkButton}
+                              disabled={isReadOnly}
                               onClick={() => void generateDrafts({ audience: report.audience, subjectId: report.subjectId })}
                             >
                               Regenerate
@@ -443,10 +481,10 @@ export function SalthubApp() {
               </div>
               {activeReport ? (
                 <div className={styles.inlineControls}>
-                  <button type="button" className={styles.secondaryButton} onClick={() => void transitionReport("approve")}>
+                  <button type="button" className={styles.secondaryButton} disabled={isReadOnly} onClick={() => void transitionReport("approve")}>
                     Approve
                   </button>
-                  <button type="button" className={styles.primaryButton} onClick={() => void transitionReport("publish")}>
+                  <button type="button" className={styles.primaryButton} disabled={isReadOnly} onClick={() => void transitionReport("publish")}>
                     Publish
                   </button>
                 </div>
