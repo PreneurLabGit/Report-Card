@@ -5,6 +5,8 @@ import {
   analyticsPayloadSchema,
   clientSummarySchema,
   departmentBreakdownSchema,
+  frictionNoteBaseSchema,
+  frictionNotesJsonSchema,
   projectFeesBaseSchema,
   userDirectoryCsvSchema,
   userDirectoryJsonSchema,
@@ -18,6 +20,7 @@ import type {
   RawAnalyticsPayload,
   RawClientSummaryRow,
   RawDepartmentBreakdownRow,
+  RawFrictionNote,
   RawProjectFeesByDepartmentRow,
   RawUserDirectoryRow,
   UploadArtifact,
@@ -32,6 +35,7 @@ export interface ProcessedUpload {
   projectFeesByDepartment?: RawProjectFeesByDepartmentRow[];
   departmentBreakdown?: RawDepartmentBreakdownRow[];
   clientSummaries?: RawClientSummaryRow[];
+  frictionNotes?: RawFrictionNote[];
   userDirectory?: RawUserDirectoryRow[];
   analyticsPayloads?: RawAnalyticsPayload[];
 }
@@ -96,6 +100,59 @@ function parseProjectRow(row: Record<string, string>) {
     totalFees: base.data["Total Fees"],
     departmentFees,
   } satisfies RawProjectFeesByDepartmentRow;
+}
+
+function normalizeTags(tags?: string | string[]) {
+  if (!tags) {
+    return undefined;
+  }
+
+  if (Array.isArray(tags)) {
+    return tags.map((tag) => tag.trim()).filter(Boolean);
+  }
+
+  return tags
+    .split(/[;,]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function mapFrictionNote(input: {
+  note_id: string;
+  manager_id: string;
+  manager_name: string;
+  manager_email: string;
+  team: string;
+  leader_id: string;
+  leader_name: string;
+  department: string;
+  submitted_at: string;
+  reporting_period_start: string;
+  reporting_period_end: string;
+  note_text: string;
+  note_status?: string;
+  tags?: string | string[];
+  source?: string;
+  region?: string;
+}): RawFrictionNote {
+  return {
+    noteId: input.note_id,
+    managerId: input.manager_id,
+    managerName: input.manager_name,
+    managerEmail: input.manager_email,
+    team: input.team,
+    leaderId: input.leader_id,
+    leaderName: input.leader_name,
+    department: input.department,
+    submittedAt: input.submitted_at,
+    reportingPeriodStart: input.reporting_period_start,
+    reportingPeriodEnd: input.reporting_period_end,
+    noteText: input.note_text,
+    noteStatus: input.note_status,
+    tags: normalizeTags(input.tags),
+    source: input.source,
+    region: input.region,
+  };
 }
 
 export async function processUpload(file: File): Promise<ProcessedUpload> {
@@ -236,6 +293,43 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
           clientSummaries,
         };
       }
+      case "friction_notes": {
+        messages.push(
+          ...buildMessages(
+            [
+              "note_id",
+              "manager_id",
+              "manager_name",
+              "manager_email",
+              "team",
+              "leader_id",
+              "leader_name",
+              "department",
+              "submitted_at",
+              "reporting_period_start",
+              "reporting_period_end",
+              "note_text",
+            ],
+            parsed.headers,
+            true,
+          ),
+        );
+        const frictionNotes = parsed.rows
+          .map((row) => frictionNoteBaseSchema.safeParse(row))
+          .flatMap((result) => (result.success ? [mapFrictionNote(result.data)] : []));
+
+        return {
+          artifact: {
+            ...artifactBase,
+            detectedKind: kind,
+            status: messages.some((item) => item.level === "error") ? "error" : "validated",
+            messages,
+            rowCount,
+          },
+          kind,
+          frictionNotes,
+        };
+      }
       case "user_directory": {
         messages.push({
           level: "info",
@@ -283,6 +377,37 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
     const parsed = parseJsonText(text);
     messages.push(...parsed.messages);
     kind = detectJsonKind(parsed.data);
+
+    if (kind === "friction_notes") {
+      const source = Array.isArray(parsed.data)
+        ? { friction_notes: parsed.data }
+        : parsed.data;
+      const validated = frictionNotesJsonSchema.safeParse(source);
+
+      if (!validated.success) {
+        messages.push({
+          level: "error",
+          code: "invalid_friction_notes_json",
+          message: "Friction note JSON must contain a friction_notes or notes array with canonical note fields.",
+        });
+      }
+
+      const noteRows = validated.success
+        ? (validated.data.friction_notes ?? validated.data.notes ?? [])
+        : [];
+
+      return {
+        artifact: {
+          ...artifactBase,
+          detectedKind: kind,
+          status: messages.some((item) => item.level === "error") ? "error" : "validated",
+          messages,
+          rowCount: noteRows.length,
+        },
+        kind,
+        frictionNotes: noteRows.map(mapFrictionNote),
+      };
+    }
 
     if (kind === "user_directory") {
       const source = Array.isArray(parsed.data) ? { users: parsed.data } : parsed.data;

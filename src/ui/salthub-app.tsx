@@ -39,6 +39,7 @@ function buildDatasetPreview(dataset: NormalizedDataset | null) {
     { label: "Action logs", value: dataset.actionLogs.length },
     { label: "Projects", value: dataset.projectFeesByDepartment.length },
     { label: "Departments", value: dataset.departmentRollups.length },
+    { label: "Friction notes", value: dataset.frictionNotes.length },
     { label: "Users", value: dataset.userDirectory.length },
     { label: "Analytics payloads", value: dataset.analyticsPayloads.length },
   ];
@@ -88,7 +89,7 @@ export function SalthubApp() {
     <main className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>Phase 1 foundation</p>
+          <p className={styles.eyebrow}>Phase 2 foundation</p>
           <h1>Salthub Report Card</h1>
           <p>
             Upload SaltHub exports and structured JSON feeds, validate them, normalize them, and preview audience-specific
@@ -102,6 +103,7 @@ export function SalthubApp() {
             <li>`project_fees_by_department_by_month.csv`</li>
             <li>`department_breakdown_report.csv`</li>
             <li>`client_summary_report.csv`</li>
+            <li>`friction_notes.csv` or JSON</li>
             <li>User directory CSV or JSON</li>
             <li>Analytics JSON payloads</li>
           </ul>
@@ -128,7 +130,7 @@ export function SalthubApp() {
                 onChange={(event) => void handleFiles(event.target.files)}
               />
               <strong>Drop files here or browse</strong>
-              <span>Files stay in local app state for Phase 1. Unsupported CSV or JSON is rejected with guidance.</span>
+              <span>Files stay in local app state for this phase. Unsupported CSV or JSON is rejected with guidance.</span>
             </label>
           </section>
 

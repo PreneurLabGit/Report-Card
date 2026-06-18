@@ -35,5 +35,17 @@ export function qaReportViewModel(report: ReportViewModel): ValidationMessage[] 
     });
   }
 
+  const sectionText = report.sections
+    .flatMap((section) => [section.title, section.body, section.callout ?? "", ...(section.bullets ?? [])])
+    .join(" ");
+
+  if (/@/.test(sectionText)) {
+    issues.push({
+      level: "error",
+      code: "email_exposure",
+      message: "Rendered reports must not expose email addresses.",
+    });
+  }
+
   return issues;
 }

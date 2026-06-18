@@ -1,3 +1,4 @@
+import { buildFrictionRollups } from "@/derivation/friction";
 import type { NormalizedDataset, NormalizedUser } from "@/lib/domain";
 import type { ProcessedUpload } from "@/ingestion/process-upload";
 import { slugify, uniqueBy } from "@/lib/utils";
@@ -46,6 +47,7 @@ export function normalizeDataset(processed: ProcessedUpload[]): NormalizedDatase
   const projectFeesByDepartment = processed.flatMap((item) => item.projectFeesByDepartment ?? []);
   const departmentBreakdown = processed.flatMap((item) => item.departmentBreakdown ?? []);
   const clientSummaries = processed.flatMap((item) => item.clientSummaries ?? []);
+  const frictionNotes = processed.flatMap((item) => item.frictionNotes ?? []);
   const userDirectory = normalizeUsers(processed);
   const analyticsPayloads = processed.flatMap((item) => item.analyticsPayloads ?? []);
 
@@ -99,6 +101,7 @@ export function normalizeDataset(processed: ProcessedUpload[]): NormalizedDatase
     actionLogs.length === 0 ? "action_logs" : null,
     projectFeesByDepartment.length === 0 ? "project_fees_by_department_by_month" : null,
     departmentBreakdown.length === 0 ? "department_breakdown_report" : null,
+    frictionNotes.length === 0 ? "friction_notes" : null,
     userDirectory.length === 0 ? "user_directory" : null,
   ].filter(Boolean) as string[];
 
@@ -112,11 +115,13 @@ export function normalizeDataset(processed: ProcessedUpload[]): NormalizedDatase
     projectFeesByDepartment,
     departmentBreakdown,
     clientSummaries,
+    frictionNotes,
     userDirectory,
     analyticsPayloads,
     individualMetrics,
     departmentRollups,
     enterpriseRollup,
+    frictionRollups: buildFrictionRollups(frictionNotes),
     missingSources,
     duplicateUploads,
   };

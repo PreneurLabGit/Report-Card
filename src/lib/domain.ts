@@ -3,6 +3,7 @@ export type FileKind =
   | "project_fees_by_department_by_month"
   | "department_breakdown_report"
   | "client_summary_report"
+  | "friction_notes"
   | "user_directory"
   | "analytics_payload"
   | "unsupported";
@@ -79,6 +80,25 @@ export interface RawAnalyticsPayload {
   [key: string]: unknown;
 }
 
+export interface RawFrictionNote {
+  noteId: string;
+  managerId: string;
+  managerName: string;
+  managerEmail: string;
+  team: string;
+  leaderId: string;
+  leaderName: string;
+  department: string;
+  submittedAt: string;
+  reportingPeriodStart: string;
+  reportingPeriodEnd: string;
+  noteText: string;
+  noteStatus?: string;
+  tags?: string[];
+  source?: string;
+  region?: string;
+}
+
 export interface NormalizedUser {
   id: string;
   email: string;
@@ -111,17 +131,44 @@ export interface EnterpriseRollup {
   totalActions: number;
 }
 
+export type FrictionClassification = "Platform" | "Capability" | "Behavioral";
+
+export interface FrictionTheme {
+  id: string;
+  themeKey: string;
+  label: string;
+  keywords: string[];
+  classification?: FrictionClassification;
+  noteCount: number;
+  distinctManagerCount: number;
+  distinctTeamCount: number;
+  periods: string[];
+  evidenceSnippets: string[];
+  sampleManagerNames: string[];
+  summary: string;
+}
+
+export interface FrictionRollups {
+  allNotes: RawFrictionNote[];
+  byManagerId: Record<string, RawFrictionNote[]>;
+  byLeaderId: Record<string, RawFrictionNote[]>;
+  byDepartment: Record<string, RawFrictionNote[]>;
+  enterpriseThemes: FrictionTheme[];
+}
+
 export interface NormalizedDataset {
   uploads: UploadArtifact[];
   actionLogs: RawActionLog[];
   projectFeesByDepartment: RawProjectFeesByDepartmentRow[];
   departmentBreakdown: RawDepartmentBreakdownRow[];
   clientSummaries: RawClientSummaryRow[];
+  frictionNotes: RawFrictionNote[];
   userDirectory: NormalizedUser[];
   analyticsPayloads: RawAnalyticsPayload[];
   individualMetrics: IndividualMetric[];
   departmentRollups: DepartmentRollup[];
   enterpriseRollup: EnterpriseRollup;
+  frictionRollups: FrictionRollups;
   missingSources: string[];
   duplicateUploads: string[];
 }
@@ -138,6 +185,10 @@ export interface ReportSection {
   title: string;
   body: string;
   availability: "available" | "placeholder" | "hidden";
+  tone?: "default" | "quote" | "summary";
+  bullets?: string[];
+  callout?: string;
+  classification?: FrictionClassification;
 }
 
 export interface ComparisonRow {

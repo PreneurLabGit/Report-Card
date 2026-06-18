@@ -294,6 +294,16 @@
   padding: 16px;
 }
 
+.quoteBlock {
+  margin: 0;
+  padding: 16px 18px;
+  border-left: 4px solid var(--accent);
+  background: rgba(212, 111, 77, 0.08);
+  color: var(--surface-ink);
+  font-family: var(--font-serif), serif;
+  line-height: 1.6;
+}
+
 .comparisonRow {
   display: grid;
   gap: 4px;
@@ -309,6 +319,20 @@
 .sectionHeading span {
   color: var(--accent);
   text-transform: capitalize;
+}
+
+.sectionCallout {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.sectionBullets {
+  margin-top: 12px;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: var(--surface-ink);
 }
 
 .reportFooter {

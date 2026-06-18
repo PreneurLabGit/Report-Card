@@ -64,9 +64,17 @@ export function ReportCardTemplate({ report }: { report: ReportViewModel }) {
                 <section key={section.title} className={styles.narrativeSection}>
                   <div className={styles.sectionHeading}>
                     <h4>{section.title}</h4>
-                    <span>{section.availability}</span>
+                    <span>{section.classification ?? section.availability}</span>
                   </div>
-                  <p>{section.body}</p>
+                  {section.tone === "quote" ? <blockquote className={styles.quoteBlock}>{section.body}</blockquote> : <p>{section.body}</p>}
+                  {section.callout ? <small className={styles.sectionCallout}>{section.callout}</small> : null}
+                  {section.bullets && section.bullets.length > 0 ? (
+                    <ul className={styles.sectionBullets}>
+                      {section.bullets.map((bullet) => (
+                        <li key={bullet}>{bullet}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </section>
               ))}
           </div>

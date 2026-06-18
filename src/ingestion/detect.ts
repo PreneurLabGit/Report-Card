@@ -5,6 +5,7 @@ const KNOWN_CSV_FILENAMES: Record<string, FileKind> = {
   "project_fees_by_department_by_month.csv": "project_fees_by_department_by_month",
   "department_breakdown_report.csv": "department_breakdown_report",
   "client_summary_report.csv": "client_summary_report",
+  "friction_notes.csv": "friction_notes",
 };
 
 function normalizeKeys(rows: Record<string, unknown>[]) {
@@ -54,6 +55,25 @@ export function detectCsvKind(name: string, headers: string[]): FileKind {
     return "client_summary_report";
   }
 
+  if (
+    [
+      "note_id",
+      "manager_id",
+      "manager_name",
+      "manager_email",
+      "team",
+      "leader_id",
+      "leader_name",
+      "department",
+      "submitted_at",
+      "reporting_period_start",
+      "reporting_period_end",
+      "note_text",
+    ].every((item) => headerSet.has(item))
+  ) {
+    return "friction_notes";
+  }
+
   if (headerSet.has("email")) {
     return "user_directory";
   }
@@ -77,6 +97,10 @@ export function detectJsonKind(value: unknown): FileKind {
   }
 
   const record = value as Record<string, unknown>;
+
+  if (Array.isArray(record.friction_notes) || Array.isArray(record.notes)) {
+    return "friction_notes";
+  }
 
   if (Array.isArray(record.users) || Array.isArray(record.managers) || typeof record.summary === "object") {
     if (Array.isArray(record.users)) {
