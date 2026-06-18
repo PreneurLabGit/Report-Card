@@ -1,30 +1,18 @@
 :root {
-  --bg: #f4ede4;
-  --surface: rgba(255, 252, 246, 0.82);
-  --surface-strong: #fffaf2;
-  --surface-ink: #16313a;
-  --line: rgba(22, 49, 58, 0.14);
-  --text: #17313b;
-  --muted: #5a6f75;
-  --accent: #d46f4d;
-  --green: #2d825c;
-  --yellow: #b88717;
-  --red: #b24d48;
-  --shadow: 0 20px 45px rgba(48, 54, 57, 0.12);
+  --text: #111827;
 }
 
 html {
   height: 100%;
-  background:
-    radial-gradient(circle at top left, rgba(212, 111, 77, 0.18), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(85, 128, 111, 0.14), transparent 24%),
-    var(--bg);
+  background: #f9fafb;
 }
 
 body {
   min-height: 100%;
-  color: var(--text);
   font-family: var(--font-sans), sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: #f9fafb;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -59,13 +47,11 @@ svg {
   max-width: 100%;
 }
 
-::selection {
-  background: rgba(212, 111, 77, 0.18);
-}
-
-@media print {
-  html,
-  body {
-    background: #fff;
-  }
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
 }

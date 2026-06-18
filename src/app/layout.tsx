@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
-import { Fraunces, Manrope } from "next/font/google";
+import { Roboto } from "next/font/google";
 import "./globals.css";
 
-const sans = Manrope({
+const sans = Roboto({
   variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const serif = Fraunces({
-  variable: "--font-serif",
+  weight: ["400", "500", "700"],
   subsets: ["latin"],
 });
 
@@ -23,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable}`}>
+    <html lang="en" className={sans.variable}>
       <body>{children}</body>
     </html>
   );

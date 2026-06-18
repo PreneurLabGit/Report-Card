@@ -1,14 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
-import type { ProcessedUpload } from "@/ingestion/process-upload";
-import { processUpload } from "@/ingestion/process-upload";
-import type { AudienceOption, NormalizedDataset, ValidationMessage } from "@/lib/domain";
-import { normalizeDataset } from "@/normalization/normalize";
-import { qaReportViewModel } from "@/qa/report-qa";
-import { buildReportViewModel } from "@/reporting/build-report";
-import { buildAudienceOptions } from "@/reporting/options";
+import type { ValidationMessage } from "@/lib/domain";
+import type { AppStatePayload } from "@/lib/server/types";
 import { ReportCardTemplate } from "@/templates/report-card-template";
 import styles from "@/ui/salthub-app.module.css";
 
@@ -29,222 +24,461 @@ function ValidationList({ messages }: { messages: ValidationMessage[] }) {
   );
 }
 
-function buildDatasetPreview(dataset: NormalizedDataset | null) {
-  if (!dataset) {
-    return [];
+function statusClass(status: string) {
+  switch (status) {
+    case "published":
+      return styles.statusGreen;
+    case "approved":
+      return styles.statusBlue;
+    case "draft":
+      return styles.statusAmber;
+    case "error":
+      return styles.statusRed;
+    default:
+      return styles.statusSlate;
   }
-
-  return [
-    { label: "Uploads", value: dataset.uploads.length },
-    { label: "Action logs", value: dataset.actionLogs.length },
-    { label: "Projects", value: dataset.projectFeesByDepartment.length },
-    { label: "Departments", value: dataset.departmentRollups.length },
-    { label: "Friction notes", value: dataset.frictionNotes.length },
-    { label: "Users", value: dataset.userDirectory.length },
-    { label: "Analytics payloads", value: dataset.analyticsPayloads.length },
-  ];
 }
 
 export function SalthubApp() {
-  const [processedUploads, setProcessedUploads] = useState<ProcessedUpload[]>([]);
-  const [reportOptionId, setReportOptionId] = useState<string>("");
+  const [appState, setAppState] = useState<AppStatePayload | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
+  const [selectedReportId, setSelectedReportId] = useState<string>("");
+  const [emailHtml, setEmailHtml] = useState<string>("");
+  const [previewMode, setPreviewMode] = useState<"web" | "email">("web");
+  const [includeNarrative, setIncludeNarrative] = useState(true);
   const [isPending, startTransition] = useTransition();
 
-  const dataset = useMemo(
-    () => (processedUploads.length > 0 ? normalizeDataset(processedUploads) : null),
-    [processedUploads],
+  const activeReport = useMemo(
+    () => appState?.reports.find((report) => report.id === selectedReportId) ?? appState?.reports[0],
+    [appState, selectedReportId],
   );
-  const reportOptions = useMemo(() => (dataset ? buildAudienceOptions(dataset) : []), [dataset]);
+  const activeVersion = useMemo(
+    () => appState?.reportVersions.find((version) => version.id === activeReport?.currentVersionId) ?? null,
+    [activeReport, appState],
+  );
 
-  const activeOption: AudienceOption | undefined = reportOptions.find((item) => item.id === reportOptionId) ?? reportOptions[0];
-  const report = dataset && activeOption ? buildReportViewModel(dataset, activeOption) : null;
-  const reportQa = report ? qaReportViewModel(report) : [];
+  async function refreshState() {
+    const response = await fetch("/api/app-state", { cache: "no-store" });
+    if (response.status === 401) {
+      setAppState(null);
+      return;
+    }
+    const payload = (await response.json()) as AppStatePayload;
+    setAppState(payload);
+    setSelectedPeriodId((current) => current || payload.periods[0]?.id || "");
+    setSelectedReportId((current) => current || payload.reports[0]?.id || "");
+  }
 
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) {
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch("/api/app-state", { cache: "no-store" })
+      .then(async (response) => {
+        if (cancelled) {
+          return;
+        }
+        if (response.status === 401) {
+          setAppState(null);
+          return;
+        }
+        const payload = (await response.json()) as AppStatePayload;
+        setAppState(payload);
+        setSelectedPeriodId((current) => current || payload.periods[0]?.id || "");
+        setSelectedReportId((current) => current || payload.reports[0]?.id || "");
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsBootstrapping(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeVersion || previewMode !== "email") {
       return;
     }
 
-    const files = Array.from(fileList);
+    void fetch(`/api/report-versions/${activeVersion.id}/email`)
+      .then((response) => response.text())
+      .then(setEmailHtml);
+  }, [activeVersion, previewMode]);
+
+  async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFiles || !selectedPeriodId) {
+      return;
+    }
 
     startTransition(async () => {
-      const nextUploads = await Promise.all(files.map((file) => processUpload(file)));
-      setProcessedUploads((current) => {
-        const combined = [...current];
-
-        for (const upload of nextUploads) {
-          const duplicate = combined.find((item) => item.artifact.hash === upload.artifact.hash);
-
-          if (!duplicate) {
-            combined.push(upload);
-          }
-        }
-
-        return combined;
-      });
+      const formData = new FormData();
+      formData.append("periodId", selectedPeriodId);
+      Array.from(selectedFiles).forEach((file) => formData.append("files", file));
+      await fetch("/api/upload-batches", { method: "POST", body: formData });
+      setSelectedFiles(null);
+      await refreshState();
     });
   }
 
-  return (
-    <main className={styles.page}>
-      <section className={styles.hero}>
-        <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>Phase 2 foundation</p>
-          <h1>Salthub Report Card</h1>
-          <p>
-            Upload SaltHub exports and structured JSON feeds, validate them, normalize them, and preview audience-specific
-            narrative briefs.
-          </p>
-        </div>
-        <div className={styles.heroPanel}>
-          <span className={styles.metaLabel}>Supported in Phase 1</span>
-          <ul>
-            <li>`action_logs.csv`</li>
-            <li>`project_fees_by_department_by_month.csv`</li>
-            <li>`department_breakdown_report.csv`</li>
-            <li>`client_summary_report.csv`</li>
-            <li>`friction_notes.csv` or JSON</li>
-            <li>User directory CSV or JSON</li>
-            <li>Analytics JSON payloads</li>
-          </ul>
-        </div>
-      </section>
+  async function generateDrafts(report?: { audience: string; subjectId?: string }) {
+    if (!selectedPeriodId) {
+      return;
+    }
 
-      <section className={styles.workspace}>
-        <div className={styles.leftRail}>
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.eyebrow}>Upload</p>
-                <h2>Landing zone</h2>
-              </div>
-              {isPending ? <span className={styles.pending}>Processing...</span> : null}
+    startTransition(async () => {
+      await fetch("/api/reports/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          periodId: selectedPeriodId,
+          includeNarrative,
+          audience: report?.audience,
+          subjectId: report?.subjectId,
+        }),
+      });
+      await refreshState();
+    });
+  }
+
+  async function transitionReport(action: "approve" | "publish") {
+    if (!activeReport) {
+      return;
+    }
+
+    startTransition(async () => {
+      await fetch(`/api/reports/${activeReport.id}/workflow`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      await refreshState();
+    });
+  }
+
+  if (isBootstrapping) {
+    return (
+      <main className={styles.authPage}>
+        <section className={styles.authCard}>
+          <div className={styles.brandRow}>
+            <div className={styles.logoMark}>S</div>
+            <div>
+              <h1>Salthub Report Card</h1>
+              <p>Loading workspace...</p>
             </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
-            <label className={styles.uploadDropzone}>
-              <input
-                type="file"
-                multiple
-                accept=".csv,.json"
-                className={styles.fileInput}
-                onChange={(event) => void handleFiles(event.target.files)}
-              />
-              <strong>Drop files here or browse</strong>
-              <span>Files stay in local app state for this phase. Unsupported CSV or JSON is rejected with guidance.</span>
+  if (!appState) {
+    /*
+    Demo sign-in screen is temporarily disabled.
+    Keep this UI block for later when real auth replaces the temporary auto-auth bypass.
+    return (
+      <main className={styles.authPage}>
+        <section className={styles.authCard}>
+          <div className={styles.brandRow}>
+            <div className={styles.logoMark}>S</div>
+            <div>
+              <h1>Salthub Report Card</h1>
+              <p>Production workflow console for uploads, review, publishing, and email-ready outputs.</p>
+            </div>
+          </div>
+
+          <form className={styles.authForm} onSubmit={handleLogin}>
+            <label>
+              Email
+              <input value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
             </label>
-          </section>
+            <label>
+              Password
+              <input type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} />
+            </label>
+            <button type="submit" className={styles.primaryButton}>
+              Sign in
+            </button>
+          </form>
 
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.eyebrow}>Validation</p>
-                <h2>Uploaded files</h2>
-              </div>
-            </div>
+          {authError ? <p className={styles.errorText}>{authError}</p> : null}
 
-            {processedUploads.length === 0 ? (
-              <p className={styles.emptyNote}>No uploads yet. Start with an action log export or a user directory file.</p>
-            ) : (
-              <div className={styles.uploadList}>
-                {processedUploads.map((upload) => (
-                  <article key={upload.artifact.id} className={styles.uploadRow}>
-                    <div className={styles.uploadMeta}>
-                      <strong>{upload.artifact.name}</strong>
-                      <span>
-                        {upload.artifact.detectedKind} · {upload.artifact.rowCount} rows
-                      </span>
-                    </div>
-                    <ValidationList messages={upload.artifact.messages} />
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.eyebrow}>Normalization</p>
-                <h2>Dataset preview</h2>
-              </div>
-            </div>
-
-            {dataset ? (
-              <>
-                <div className={styles.previewGrid}>
-                  {buildDatasetPreview(dataset).map((item) => (
-                    <div key={item.label} className={styles.previewTile}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                    </div>
-                  ))}
+          <section className={styles.demoCard}>
+            <h2>Demo users</h2>
+            <div className={styles.credentialList}>
+              {[
+                { role: "Admin", email: "admin@salthub.local", password: "admin123" },
+                { role: "Uploader", email: "uploader@salthub.local", password: "upload123" },
+                { role: "Reviewer", email: "reviewer@salthub.local", password: "review123" },
+                { role: "Publisher", email: "publisher@salthub.local", password: "publish123" },
+              ].map((user) => (
+                <div key={user.email} className={styles.credentialRow}>
+                  <strong>{user.role}</strong>
+                  <span>{user.email}</span>
+                  <span>{user.password}</span>
                 </div>
-                <ValidationList
-                  messages={[
-                    ...dataset.duplicateUploads.map((name) => ({
-                      level: "warning" as const,
-                      code: "duplicate_upload",
-                      message: `Duplicate upload ignored: ${name}`,
-                    })),
-                    ...dataset.missingSources.map((name) => ({
-                      level: "info" as const,
-                      code: "missing_source",
-                      message: `Missing source for richer previews: ${name}`,
-                    })),
-                  ]}
-                />
-              </>
+              ))}
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+    */
+
+    return (
+      <main className={styles.authPage}>
+        <section className={styles.authCard}>
+          <div className={styles.brandRow}>
+            <div className={styles.logoMark}>S</div>
+            <div>
+              <h1>Salthub Report Card</h1>
+              <p>Temporary auth bypass is enabled, but app state could not be loaded.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const currentPeriod = appState.periods.find((period) => period.id === selectedPeriodId) ?? appState.periods[0];
+
+  return (
+    <main className={styles.appPage}>
+      <header className={styles.header}>
+        <div className={styles.brandRow}>
+          <div className={styles.logoMark}>S</div>
+          <div>
+            <h1>Salthub Report Card</h1>
+            <p>Validated uploads, grounded drafts, review workflow, and publish-ready outputs.</p>
+          </div>
+        </div>
+        <div className={styles.headerActions}>
+          <span className={`${styles.statusPill} ${styles.statusBlue}`}>{appState.currentUser.role}</span>
+          <span className={styles.userMeta}>{appState.currentUser.name}</span>
+          {/* Demo sign-out is intentionally hidden while auth bypass is enabled. */}
+        </div>
+      </header>
+
+      <section className={styles.contentGrid}>
+        <div className={styles.leftRail}>
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div>
+                <h2>Upload batch</h2>
+                <p>Attach exports to a reporting period. Raw files are persisted and normalized server-side.</p>
+              </div>
+            </div>
+
+            <form className={styles.stack} onSubmit={handleUpload}>
+              <label>
+                Reporting period
+                <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)}>
+                  {appState.periods.map((period) => (
+                    <option key={period.id} value={period.id}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Upload files
+                <input type="file" multiple accept=".csv,.json" onChange={(event) => setSelectedFiles(event.target.files)} />
+              </label>
+              <button type="submit" className={styles.primaryButton} disabled={isPending || !selectedFiles}>
+                {isPending ? "Processing..." : "Upload batch"}
+              </button>
+            </form>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div>
+                <h2>Reporting periods</h2>
+                <p>Historical periods support reproducible snapshots and period-over-period review.</p>
+              </div>
+            </div>
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th>Cadence</th>
+                    <th>Date range</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appState.periods.map((period) => (
+                    <tr key={period.id} className={period.id === currentPeriod?.id ? styles.activeRow : undefined}>
+                      <td>{period.label}</td>
+                      <td>{period.cadence}</td>
+                      <td>
+                        {period.startDate} to {period.endDate}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div>
+                <h2>Uploaded files</h2>
+                <p>Validation results and schema detection per file.</p>
+              </div>
+            </div>
+            {appState.uploadBatches.length === 0 ? (
+              <p className={styles.emptyNote}>No upload batches yet.</p>
             ) : (
-              <p className={styles.emptyNote}>Normalized data will appear after at least one valid file is uploaded.</p>
+              <div className={styles.stack}>
+                {appState.uploadBatches
+                  .filter((batch) => batch.periodId === currentPeriod?.id)
+                  .map((batch) => (
+                    <article key={batch.id} className={styles.batchCard}>
+                      <div className={styles.batchHeader}>
+                        <strong>Batch {batch.id.slice(0, 8)}</strong>
+                        <span>{new Date(batch.createdAt).toLocaleString()}</span>
+                      </div>
+                      {batch.files.map((file) => (
+                        <div key={file.id} className={styles.fileRow}>
+                          <div>
+                            <strong>{file.name}</strong>
+                            <div className={styles.inlineMeta}>
+                              <span>{file.detectedKind}</span>
+                              <span>{file.rowCount} rows</span>
+                              <span className={`${styles.statusPill} ${statusClass(file.status)}`}>{file.status}</span>
+                            </div>
+                          </div>
+                          <ValidationList
+                            messages={file.validationMessages.map((message, index) => ({
+                              level: (message.level as "info" | "warning" | "error") ?? "info",
+                              code: `validation-${index}`,
+                              message: message.message,
+                            }))}
+                          />
+                        </div>
+                      ))}
+                    </article>
+                  ))}
+              </div>
             )}
           </section>
         </div>
 
         <div className={styles.rightRail}>
-          <section className={styles.panel}>
-            <div className={styles.panelHeader}>
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
               <div>
-                <p className={styles.eyebrow}>Reports</p>
-                <h2>Generation controls</h2>
+                <h2>Draft generation</h2>
+                <p>Generate grounded drafts in bulk by period or selectively by report.</p>
               </div>
-            </div>
-
-            {reportOptions.length > 0 ? (
-              <div className={styles.controls}>
-                <label>
-                  Audience / subject
-                  <select value={activeOption?.id ?? ""} onChange={(event) => setReportOptionId(event.target.value)}>
-                    {reportOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+              <div className={styles.inlineControls}>
+                <label className={styles.inlineCheckbox}>
+                  <input
+                    type="checkbox"
+                    checked={includeNarrative}
+                    onChange={(event) => setIncludeNarrative(event.target.checked)}
+                  />
+                  Enable grounded narrative layer
                 </label>
-                <button type="button" className={styles.printButton} onClick={() => window.print()}>
-                  Print / export PDF
+                <button type="button" className={styles.primaryButton} onClick={() => void generateDrafts()}>
+                  Generate drafts for period
                 </button>
               </div>
-            ) : (
-              <p className={styles.emptyNote}>Upload a user directory, department export, or analytics payload to unlock report previews.</p>
-            )}
-          </section>
-
-          <section className={`${styles.panel} ${styles.previewPanel}`}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.eyebrow}>Preview</p>
-                <h2>Report card output</h2>
-              </div>
             </div>
 
-            {report ? (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Audience</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appState.reports
+                    .filter((report) => report.periodId === currentPeriod?.id)
+                    .map((report) => (
+                      <tr key={report.id} className={report.id === activeReport?.id ? styles.activeRow : undefined}>
+                        <td>{report.audience}</td>
+                        <td>{report.subjectLabel}</td>
+                        <td>
+                          <span className={`${styles.statusPill} ${statusClass(report.workflowState)}`}>{report.workflowState}</span>
+                        </td>
+                        <td>{new Date(report.updatedAt).toLocaleString()}</td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            <button type="button" className={styles.linkButton} onClick={() => setSelectedReportId(report.id)}>
+                              Preview
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.linkButton}
+                              onClick={() => void generateDrafts({ audience: report.audience, subjectId: report.subjectId })}
+                            >
+                              Regenerate
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={styles.card}>
+            <div className={styles.cardHeader}>
+              <div>
+                <h2>Review and publish</h2>
+                <p>Drafts are versioned. Approval and publishing update workflow state without mutating history.</p>
+              </div>
+              {activeReport ? (
+                <div className={styles.inlineControls}>
+                  <button type="button" className={styles.secondaryButton} onClick={() => void transitionReport("approve")}>
+                    Approve
+                  </button>
+                  <button type="button" className={styles.primaryButton} onClick={() => void transitionReport("publish")}>
+                    Publish
+                  </button>
+                </div>
+              ) : null}
+            </div>
+
+            {activeVersion ? (
               <>
-                <ValidationList messages={reportQa} />
-                <ReportCardTemplate report={report} />
+                <div className={styles.previewTabs}>
+                  <button
+                    type="button"
+                    className={previewMode === "web" ? styles.tabActive : styles.tabButton}
+                    onClick={() => setPreviewMode("web")}
+                  >
+                    Web preview
+                  </button>
+                  <button
+                    type="button"
+                    className={previewMode === "email" ? styles.tabActive : styles.tabButton}
+                    onClick={() => setPreviewMode("email")}
+                  >
+                    Email HTML
+                  </button>
+                </div>
+                {previewMode === "web" ? (
+                  <ReportCardTemplate report={activeVersion.viewModel} />
+                ) : (
+                  <iframe title="Email preview" className={styles.emailFrame} srcDoc={emailHtml} />
+                )}
               </>
             ) : (
-              <p className={styles.emptyNote}>No report available yet. Upload supported sources and select an audience.</p>
+              <p className={styles.emptyNote}>No generated report selected for preview.</p>
             )}
           </section>
         </div>

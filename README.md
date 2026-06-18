@@ -24,11 +24,23 @@ Phase 2 currently includes:
 - ELT bottleneck summary plus evidence-gated decisions / asks
 - Privacy guardrails to avoid raw IDs, emails, and overexposed raw note content
 
+Phase 3 currently includes:
+
+- File-backed persistence for local development with a production-ready server-side persistence abstraction
+- Authenticated access with role-based workflow gates for `admin`, `uploader`, `reviewer`, and `publisher`
+- Persisted upload batches, uploaded file metadata, report versions, review actions, and audit events
+- Reporting period model with historical comparison notes in generated report versions
+- Draft generation, approval, publishing, and versioned regeneration
+- Separate web preview and email-safe HTML renderer
+- Grounded narrative provider abstraction layered on top of deterministic report building
+- SaltHub-style neutral enterprise application shell instead of the earlier editorial prototype layout
+
 Still intentionally deferred:
 
-- LLM-driven narrative enrichment
-- LLM-assisted theme classification and summarization
-- Persistent storage and historical trend persistence beyond uploaded files
+- External production database adapter wiring such as Vercel Postgres / Blob or Supabase credentials
+- Direct email send integration
+- Full provider-backed LLM implementation beyond the deterministic grounded provider
+- The missing HTML/CSS/DOCX reference assets, which still were not present in the workspace
 
 ## Supported files
 
@@ -49,6 +61,17 @@ Supported JSON files:
 
 Unsupported CSV/JSON uploads fail gracefully with explicit messages in the UI.
 
+## Authentication
+
+The current implementation ships with local demo accounts for development:
+
+- `admin@salthub.local` / `admin123`
+- `uploader@salthub.local` / `upload123`
+- `reviewer@salthub.local` / `review123`
+- `publisher@salthub.local` / `publish123`
+
+Sessions are stored server-side and sent through an HTTP-only cookie.
+
 ## Architecture
 
 The app is organized for later extension rather than a one-off upload page:
@@ -62,6 +85,8 @@ The app is organized for later extension rather than a one-off upload page:
 - `src/qa/`: report-level quality checks
 - `src/ui/`: upload workflow, validation views, and report previews
 - `src/lib/`: shared types and formatting helpers
+- `src/lib/server/`: persistence, auth, workflow orchestration, and renderer/provider abstractions
+- `src/app/api/`: route handlers for login, uploads, report generation, workflow transitions, and email export
 
 ## Local development
 
@@ -71,6 +96,8 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
+
+Local persistence writes to `data/`, which is gitignored.
 
 Useful commands:
 
@@ -87,13 +114,14 @@ npm run build
 3. Use the default Next.js build settings.
 4. Deploy.
 
-No database or secret configuration is required in the current implementation.
+No external database or secret configuration is required for local development.
+For real production persistence on Vercel, swap the local adapter in `src/lib/server/store.ts` for a Postgres/Blob-backed implementation.
 
 ## Assumptions
 
 - The repository did not contain the referenced HTML/CSS/DOCX support files at implementation time.
-- Uploaded data stays in local app state only.
-- No authentication is required yet.
+- Uploaded data is persisted locally through a file-backed adapter during development.
+- Authentication is implemented as a local credential/session system and should be replaced or federated for real production identity.
 - Analytics JSON shape is intentionally flexible and normalized conservatively.
 - Score formulas are provisional, but the score/band/label separation is stable.
 - Deterministic theme grouping uses conservative keyword/rule matching as the pre-LLM foundation.
@@ -104,4 +132,5 @@ No database or secret configuration is required in the current implementation.
 - Missing upstream sources remain explicit in the UI and are not backfilled with fake data.
 - Manager friction sections only render the manager's own note or a safe empty state.
 - Leader, Department Lead, and ELT friction sections render only when actual friction-note data exists.
-- The current report narratives remain deterministic scaffolding for a later content-generation layer.
+- Generated narratives are optional and grounded; deterministic metrics remain the source of truth.
+- Regeneration creates a new report version instead of overwriting the existing published history.
