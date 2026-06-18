@@ -1,7 +1,9 @@
 import { readState } from "@/lib/server/store";
 import type { AuthUser, UserRole } from "@/lib/server/types";
 
-export async function createSession() {
+export async function createSession(_email?: string, _password?: string) {
+  void _email;
+  void _password;
   // Demo sign-in is temporarily disabled.
   // Keep the original credential-based session creation here for later re-enablement.
   /*
