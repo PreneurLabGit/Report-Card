@@ -26,10 +26,6 @@ export default function GoodToKnowPage() {
           <div>
             <p className={styles.kicker}>Good to know</p>
             <h1>Everything you need before uploading files</h1>
-            <p className={styles.subtitle}>
-              This page holds the instructional details for the first-use flow so the homepage can stay focused on the
-              upload and preview experience.
-            </p>
           </div>
           <Link href="/" className={styles.backButton}>
             Back to app
