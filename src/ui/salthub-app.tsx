@@ -331,6 +331,9 @@ export function SalthubApp() {
       <header className={styles.header}>
         <div className={styles.heroCard}>
           <div className={styles.heroActions}>
+            <Link href="/account-management-team" className={styles.secondaryButton}>
+              Ac M. Team
+            </Link>
             <Link href="/good-to-know" className={styles.secondaryButton}>
               Good to know
             </Link>
