@@ -36,10 +36,10 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>Current flow</h2>
             <ol className={styles.numberList}>
-              <li>Upload SaltHub exports.</li>
-              <li>Let the app validate and classify each file.</li>
-              <li>Generate a report from accepted inputs.</li>
-              <li>Review the preview on the main page.</li>
+              <li>Select a reporting period and fetch SaltHub API data.</li>
+              <li>Generate eligible Account Management user report cards.</li>
+              <li>Review the final email preview on the main page.</li>
+              <li>Use upload mode only as a fallback when API data is unavailable.</li>
             </ol>
           </article>
 
@@ -102,9 +102,10 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>Validation behavior</h2>
             <ul className={styles.list}>
+              <li>The primary path is API-first and keeps external credentials on the server.</li>
               <li>Unsupported files are rejected with validation messages.</li>
               <li>Empty files are rejected.</li>
-              <li>Accepted files are used to build the preview in the current browser session.</li>
+              <li>Accepted fallback uploads are used to build upload-mode previews in the current browser session.</li>
               <li>If some expected inputs are missing, the report still generates and notes what is absent.</li>
             </ul>
           </article>
@@ -112,11 +113,11 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>What the homepage does</h2>
             <ul className={styles.list}>
-              <li>File upload</li>
-              <li>File validation status</li>
-              <li>Uploaded file list with detected type</li>
-              <li>Generate Report action</li>
-              <li>Report preview</li>
+              <li>Date-range based API generation</li>
+              <li>Generated report table for eligible Account Management users</li>
+              <li>HTML email preview</li>
+              <li>Missing-field warnings</li>
+              <li>Optional upload fallback mode</li>
             </ul>
           </article>
         </section>

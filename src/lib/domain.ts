@@ -98,3 +98,118 @@ export interface SimpleGeneratedReport {
   sections: SimpleReportSection[];
   missingInputs: string[];
 }
+
+export interface OrganizationTreeTeamMember {
+  userId: string;
+  userName: string;
+  email: string;
+  role: string;
+  department: string;
+  disabled: boolean;
+}
+
+export interface OrganizationTreeBusinessOwner extends OrganizationTreeTeamMember {
+  teamMembers: OrganizationTreeTeamMember[];
+}
+
+export interface OrganizationTreeSuperAdmin extends OrganizationTreeTeamMember {
+  businessOwners: OrganizationTreeBusinessOwner[];
+}
+
+export interface OrganizationTreeResponse {
+  superAdmins: OrganizationTreeSuperAdmin[];
+}
+
+export interface ActivityUserSummary {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  loginCount?: number;
+  projectsConfirmed?: number;
+  sentForBusinessOwnerApproval?: number;
+  otherActions?: Record<string, number>;
+}
+
+export interface ActivitySummaryResponse {
+  start_date: string;
+  end_date: string;
+  users: ActivityUserSummary[];
+}
+
+export interface DirectoryUser {
+  userId: string;
+  userName: string;
+  email: string | null;
+  role: string | null;
+  department: string | null;
+  disabled: boolean;
+  superAdminId: string | null;
+  businessOwnerId: string | null;
+  managerUserId: string | null;
+}
+
+export interface ReportPeriod {
+  startDate: string;
+  endDate: string;
+  displayLabel: string;
+}
+
+export interface NormalizedUserReport {
+  userId: string;
+  recipientEmail: string | null;
+  userName: string;
+  role: string | null;
+  department: string | null;
+  disabled: boolean;
+  reportPeriod: ReportPeriod;
+  metrics: {
+    loginCount: number;
+    pipelineEntriesCreated: number;
+    estimatesCreated: number | null;
+    estimatesSubmitted: number;
+    sentForBusinessOwnerApproval: number;
+    firstApprovals: number;
+    approvalsCompleted: number;
+    clientApprovals: number;
+    projectsConfirmed: number;
+    reworkEvents: number;
+    activeDaysCount: number | null;
+    lastActivityTs: string | null;
+    score: number | null;
+    priorPeriodScore: number | null;
+    wowScoreDelta: number | null;
+  };
+  status: {
+    label: string | null;
+    color: "green" | "yellow" | "red" | null;
+  };
+  content: {
+    lede: string;
+    observation: string;
+  };
+  missingFields: string[];
+  previewStatus: "ready" | "missing_data" | "disabled";
+  html: string;
+  templateMode: "file-template" | "fallback-template";
+}
+
+export interface ApiReportSummary {
+  activityUserCount: number;
+  eligibleDirectoryUserCount: number;
+  matchedEligibleUserCount: number;
+  readyReportCount: number;
+  missingDataReportCount: number;
+  disabledReportCount: number;
+  skippedIneligibleActivityUserCount: number;
+  skippedUsersWithoutDirectoryMatch: number;
+}
+
+export interface ApiReportResult {
+  mode: "api" | "upload-fallback";
+  generatedAt: string;
+  period: ReportPeriod;
+  priorPeriod: ReportPeriod;
+  warnings: ValidationMessage[];
+  summary: ApiReportSummary;
+  reports: NormalizedUserReport[];
+}
