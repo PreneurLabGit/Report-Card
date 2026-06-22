@@ -8,8 +8,7 @@
 }
 
 .header,
-.layout,
-.fallbackShell {
+.layout {
   width: min(100%, 1680px);
   margin: 0 auto;
   padding-left: clamp(16px, 2vw, 28px);
@@ -24,10 +23,6 @@
 .layout {
   padding-bottom: 26px;
   display: block;
-}
-
-.fallbackShell {
-  padding-bottom: 40px;
 }
 
 .toastViewport {
@@ -211,8 +206,7 @@
 .leftColumn,
 .fileList,
 .sectionStack,
-.messageList,
-.fallbackColumn {
+.messageList {
   display: grid;
   gap: 20px;
   min-width: 0;
@@ -747,24 +741,6 @@
   display: block;
 }
 
-.fallbackGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 20px;
-  align-items: start;
-  min-width: 0;
-}
-
-.fallbackColumn {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.fileList {
-  min-width: 0;
-  overflow: hidden;
-}
-
 @keyframes shimmer {
   from {
     background-position: 200% 0;
@@ -776,7 +752,6 @@
 }
 
 @media (max-width: 1180px) {
-  .fallbackGrid,
   .formGrid,
   .previewMeta {
     grid-template-columns: 1fr;

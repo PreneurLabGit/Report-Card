@@ -205,7 +205,7 @@ export interface ApiReportSummary {
 }
 
 export interface ApiReportResult {
-  mode: "api" | "upload-fallback";
+  mode: "api";
   generatedAt: string;
   period: ReportPeriod;
   priorPeriod: ReportPeriod;

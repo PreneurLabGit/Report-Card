@@ -19,15 +19,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (parsed.data.mode !== "api") {
-      return NextResponse.json(
-        {
-          error: "Only api mode is supported by this route.",
-        },
-        { status: 400 },
-      );
-    }
-
     const priorPeriod = calculatePriorPeriod(parsed.data.startDate, parsed.data.endDate);
     const organizationTree = await fetchOrganizationTree();
     const currentActivity = await fetchActivitySummary(parsed.data.startDate, parsed.data.endDate);

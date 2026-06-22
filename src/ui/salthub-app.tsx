@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { processUpload, type ProcessedUpload } from "@/ingestion/process-upload";
-import type { ApiReportResult, NormalizedUserReport, SimpleGeneratedReport, ValidationMessage } from "@/lib/domain";
+import type { ApiReportResult, NormalizedUserReport } from "@/lib/domain";
 import { formatDate } from "@/lib/format";
-import { normalizeDataset } from "@/normalization/normalize";
-import { buildSimpleReport } from "@/reporting/build-simple-report";
 import styles from "@/ui/salthub-app.module.css";
 
 type ToastTone = "success" | "error" | "warning" | "info";
@@ -17,23 +14,6 @@ interface ToastItem {
   title: string;
   message: string;
   tone: ToastTone;
-}
-
-function ValidationList({ messages }: { messages: ValidationMessage[] }) {
-  if (messages.length === 0) {
-    return <p className={styles.muted}>No validation issues.</p>;
-  }
-
-  return (
-    <div className={styles.messageList}>
-      {messages.map((message, index) => (
-        <div key={`${message.code}-${index}`} className={`${styles.message} ${styles[message.level]}`}>
-          <strong>{message.level}</strong>
-          <span>{message.message}</span>
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function ToastStack({
@@ -61,60 +41,11 @@ function ToastStack({
             aria-label={`Dismiss ${toast.title}`}
             onClick={() => onDismiss(toast.id)}
           >
-            ×
+            x
           </button>
         </article>
       ))}
     </div>
-  );
-}
-
-function UploadReportPreview({ report }: { report: SimpleGeneratedReport }) {
-  return (
-    <article className={styles.previewCard}>
-      <header className={styles.previewHeader}>
-        <div>
-          <p className={styles.kicker}>Fallback upload preview</p>
-          <h2>{report.title}</h2>
-          <p className={styles.muted}>Built from uploaded SaltHub exports in the current browser session.</p>
-        </div>
-        <span className={styles.generatedAt}>{new Date(report.generatedAt).toLocaleString()}</span>
-      </header>
-
-      <section className={styles.summaryGrid}>
-        {report.summaryCards.map((card) => (
-          <div key={card.label} className={styles.summaryTile}>
-            <span>{card.label}</span>
-            <strong>{card.value}</strong>
-            {card.detail ? <small>{card.detail}</small> : null}
-          </div>
-        ))}
-      </section>
-
-      {report.missingInputs.length > 0 ? (
-        <section className={styles.noteBox}>
-          <strong>Missing optional or required inputs</strong>
-          <p>{report.missingInputs.join(", ")}</p>
-        </section>
-      ) : null}
-
-      <section className={styles.sectionStack}>
-        {report.sections.map((section) => (
-          <section key={section.title} className={styles.sectionCard}>
-            <h3>{section.title}</h3>
-            {section.bullets.length > 0 ? (
-              <ul className={styles.bulletList}>
-                {section.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className={styles.muted}>{section.emptyState ?? "No data available."}</p>
-            )}
-          </section>
-        ))}
-      </section>
-    </article>
   );
 }
 
@@ -133,16 +64,6 @@ function ApiPreviewPlaceholder() {
   );
 }
 
-function UploadPreviewPlaceholder() {
-  return (
-    <div className={styles.previewPlaceholder}>
-      <div className={styles.previewPlaceholderBadge}>Fallback</div>
-      <h3>Upload-mode preview appears here</h3>
-      <p>Upload CSV or Excel exports only if the API path is unavailable or you need a manual comparison run.</p>
-    </div>
-  );
-}
-
 function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
   return (
     <article className={styles.previewCard}>
@@ -151,10 +72,13 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
           <p className={styles.kicker}>API-first email preview</p>
           <h2>{report.userName}</h2>
           <p className={styles.muted}>
-            {report.reportPeriod.displayLabel} · {report.role ?? "Role unavailable"} · {report.department ?? "Department unavailable"}
+            {report.reportPeriod.displayLabel} - {report.role ?? "Role unavailable"} -{" "}
+            {report.department ?? "Department unavailable"}
           </p>
         </div>
-        <span className={`${styles.reportStatusPill} ${styles[`report${report.previewStatus}`]}`}>{report.previewStatus}</span>
+        <span className={`${styles.reportStatusPill} ${styles[`report${report.previewStatus}`]}`}>
+          {report.previewStatus}
+        </span>
       </header>
 
       {report.missingFields.length > 0 ? (
@@ -222,17 +146,10 @@ export function SalthubApp() {
   const [apiResult, setApiResult] = useState<ApiReportResult | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [uploads, setUploads] = useState<ProcessedUpload[]>([]);
-  const [uploadReport, setUploadReport] = useState<SimpleGeneratedReport | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [isPending, startTransition] = useTransition();
   const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const acceptedUploads = useMemo(
-    () => uploads.filter((upload) => upload.artifact.status !== "unsupported" && upload.artifact.status !== "error"),
-    [uploads],
-  );
-  const uploadDataset = useMemo(() => (acceptedUploads.length > 0 ? normalizeDataset(acceptedUploads) : null), [acceptedUploads]);
   const selectedApiReport = useMemo(
     () => apiResult?.reports.find((report) => report.userId === selectedReportId) ?? null,
     [apiResult, selectedReportId],
@@ -311,7 +228,9 @@ export function SalthubApp() {
 
         pushToast({
           title: "API reports generated",
-          message: `${(payload as ApiReportResult).reports.length} eligible Account Management report${(payload as ApiReportResult).reports.length === 1 ? "" : "s"} prepared.`,
+          message: `${(payload as ApiReportResult).reports.length} eligible Account Management report${
+            (payload as ApiReportResult).reports.length === 1 ? "" : "s"
+          } prepared.`,
           tone: "success",
         });
 
@@ -332,131 +251,6 @@ export function SalthubApp() {
         });
       }
     });
-  }
-
-  async function handleFiles(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) {
-      pushToast({
-        title: "No files selected",
-        message: "Choose at least one SaltHub export to begin processing.",
-        tone: "info",
-      });
-      return;
-    }
-
-    const selectedFiles = Array.from(fileList);
-
-    startTransition(async () => {
-      setUploadReport(null);
-
-      try {
-        const settledUploads = await Promise.all(
-          selectedFiles.map(async (file) => {
-            try {
-              const processed = await processUpload(file);
-              return { status: "fulfilled" as const, value: processed };
-            } catch (error) {
-              return {
-                status: "rejected" as const,
-                reason: error instanceof Error ? error.message : "Unexpected upload failure.",
-                fileName: file.name,
-              };
-            }
-          }),
-        );
-
-        const nextUploads = settledUploads.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
-        const fatalFailures = settledUploads.filter((result) => result.status === "rejected");
-
-        let duplicateCount = 0;
-        setUploads((current) => {
-          const combined = [...current];
-
-          for (const upload of nextUploads) {
-            if (combined.some((item) => item.artifact.hash === upload.artifact.hash)) {
-              duplicateCount += 1;
-              continue;
-            }
-            combined.push(upload);
-          }
-
-          return combined;
-        });
-
-        const successfulAccepted = nextUploads.filter(
-          (upload) => upload.artifact.status !== "unsupported" && upload.artifact.status !== "error",
-        ).length;
-        const rejectedProcessed = nextUploads.length - successfulAccepted;
-
-        if (successfulAccepted > 0) {
-          pushToast({
-            title: "Fallback uploads accepted",
-            message: `${successfulAccepted} file${successfulAccepted === 1 ? "" : "s"} accepted for upload-mode preview.`,
-            tone: "success",
-          });
-        }
-
-        if (rejectedProcessed > 0) {
-          pushToast({
-            title: "Fallback uploads have issues",
-            message: `${rejectedProcessed} file${rejectedProcessed === 1 ? "" : "s"} failed validation or were unsupported.`,
-            tone: "warning",
-          });
-        }
-
-        if (duplicateCount > 0) {
-          pushToast({
-            title: "Duplicate files skipped",
-            message: `${duplicateCount} duplicate file${duplicateCount === 1 ? "" : "s"} were ignored.`,
-            tone: "info",
-          });
-        }
-
-        if (fatalFailures.length > 0) {
-          pushToast({
-            title: "Fallback upload failed",
-            message:
-              fatalFailures.length === 1
-                ? `${fatalFailures[0].fileName} could not be processed.`
-                : `${fatalFailures.length} files could not be processed.`,
-            tone: "error",
-          });
-        }
-      } catch (error) {
-        pushToast({
-          title: "Fallback upload failed",
-          message: error instanceof Error ? error.message : "Unexpected upload failure.",
-          tone: "error",
-        });
-      }
-    });
-  }
-
-  function handleGenerateUploadReport() {
-    if (!uploadDataset) {
-      pushToast({
-        title: "Upload required",
-        message: "Upload at least one supported SaltHub export before generating a fallback preview.",
-        tone: "error",
-      });
-      return;
-    }
-
-    try {
-      const nextReport = buildSimpleReport(uploadDataset);
-      setUploadReport(nextReport);
-      pushToast({
-        title: "Fallback preview generated",
-        message: "Upload-mode report preview is ready.",
-        tone: nextReport.missingInputs.length > 0 ? "warning" : "success",
-      });
-    } catch (error) {
-      pushToast({
-        title: "Fallback preview failed",
-        message: error instanceof Error ? error.message : "The upload-mode report could not be generated.",
-        tone: "error",
-      });
-    }
   }
 
   return (
@@ -495,11 +289,21 @@ export function SalthubApp() {
             <div className={styles.formGrid}>
               <label className={styles.field}>
                 <span>Start date</span>
-                <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={styles.input} />
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className={styles.input}
+                />
               </label>
               <label className={styles.field}>
                 <span>End date</span>
-                <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={styles.input} />
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  className={styles.input}
+                />
               </label>
             </div>
 
@@ -507,7 +311,9 @@ export function SalthubApp() {
               <button type="button" className={styles.primaryButton} onClick={handleFetchGenerate} disabled={isPending}>
                 {isPending ? "Generating..." : "Fetch and Generate"}
               </button>
-              <p className={styles.helperText}>Eligible users must have `department === Account Management` and activity in the selected period.</p>
+              <p className={styles.helperText}>
+                Eligible users must have `department === Account Management` and activity in the selected period.
+              </p>
             </div>
 
             {apiError ? <p className={styles.errorText}>{apiError}</p> : null}
@@ -585,10 +391,16 @@ export function SalthubApp() {
                           <td>{report.metrics.wowScoreDelta ?? "N/A"}</td>
                           <td>{report.missingFields.length}</td>
                           <td>
-                            <span className={`${styles.reportStatusPill} ${styles[`report${report.previewStatus}`]}`}>{report.previewStatus}</span>
+                            <span className={`${styles.reportStatusPill} ${styles[`report${report.previewStatus}`]}`}>
+                              {report.previewStatus}
+                            </span>
                           </td>
                           <td>
-                            <button type="button" className={styles.inlineButton} onClick={() => setSelectedReportId(report.userId)}>
+                            <button
+                              type="button"
+                              className={styles.inlineButton}
+                              onClick={() => setSelectedReportId(report.userId)}
+                            >
                               Preview
                             </button>
                           </td>
@@ -617,82 +429,6 @@ export function SalthubApp() {
             {selectedApiReport ? <ApiReportPreview report={selectedApiReport} /> : <ApiPreviewPlaceholder />}
           </section>
         </div>
-      </section>
-
-      <section className={styles.fallbackShell}>
-        <section className={styles.card}>
-          <div className={styles.cardHeader}>
-            <div>
-              <h2>Fallback upload mode</h2>
-              <p className={styles.muted}>Use uploads only when API data is unavailable or when you need a manual export comparison. Upload mode stays isolated from API mode.</p>
-            </div>
-            <span className={styles.cardBadge}>Optional</span>
-          </div>
-
-          <div className={styles.fallbackGrid}>
-            <div className={styles.fallbackColumn}>
-              <label className={styles.uploadBox}>
-                <input
-                  type="file"
-                  multiple
-                  accept=".csv,.xls,.xlsx"
-                  className={styles.fileInput}
-                  onChange={(event) => {
-                    void handleFiles(event.target.files);
-                    event.target.value = "";
-                  }}
-                />
-                <div className={styles.uploadIcon} aria-hidden="true">
-                  <span />
-                </div>
-                <strong>{isPending ? "Processing files..." : "Select fallback exports"}</strong>
-                <small className={styles.uploadHint}>CSV or Excel exports only</small>
-              </label>
-
-              <div className={styles.actionRow}>
-                <button
-                  type="button"
-                  className={styles.primaryButton}
-                  onClick={handleGenerateUploadReport}
-                  disabled={acceptedUploads.length === 0}
-                >
-                  Generate fallback preview
-                </button>
-                <p className={styles.helperText}>
-                  {acceptedUploads.length > 0
-                    ? `${acceptedUploads.length} accepted file${acceptedUploads.length === 1 ? "" : "s"} ready`
-                    : "Upload at least one supported export to continue"}
-                </p>
-              </div>
-
-              {uploads.length === 0 ? (
-                <div className={styles.emptyState}>
-                  <strong>No fallback files uploaded yet</strong>
-                  <p className={styles.muted}>Validated upload details will appear here after files are processed.</p>
-                </div>
-              ) : (
-                <div className={styles.fileList}>
-                  {uploads.map((upload) => (
-                    <article key={upload.artifact.id} className={styles.fileCard}>
-                      <div className={styles.fileHeader}>
-                        <div>
-                          <strong>{upload.artifact.name}</strong>
-                          <p className={styles.muted}>{upload.artifact.detectedKind} · {upload.artifact.rowCount} rows</p>
-                        </div>
-                        <span className={`${styles.statusPill} ${styles[upload.artifact.status]}`}>{upload.artifact.status}</span>
-                      </div>
-                      <ValidationList messages={upload.artifact.messages} />
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className={styles.fallbackColumn}>
-              {uploadReport ? <UploadReportPreview report={uploadReport} /> : <UploadPreviewPlaceholder />}
-            </div>
-          </div>
-        </section>
       </section>
     </main>
   );

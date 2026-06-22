@@ -2,22 +2,6 @@ import Link from "next/link";
 
 import styles from "./page.module.css";
 
-const actionLogColumns = ["id", "user_email", "action", "created", "payload"];
-
-const projectFeeColumns = [
-  "Project Code",
-  "Client",
-  "Program Name",
-  "Start Month",
-  "End Month",
-  "Status",
-  "Total Fees",
-];
-
-const departmentBreakdownColumns = ["Department", "Total Fees", "% of Total"];
-
-const clientSummaryColumns = ["Client", "Total Projects", "Total Fees", "Total Revenue"];
-
 export default function GoodToKnowPage() {
   return (
     <main className={styles.page}>
@@ -40,7 +24,6 @@ export default function GoodToKnowPage() {
               <li>Click `Fetch and Generate` to load SaltHub data server-side.</li>
               <li>Review generated Account Management user reports in the table.</li>
               <li>Open the selected user’s email preview below the table.</li>
-              <li>Use upload mode only when you need the manual fallback path.</li>
             </ol>
           </article>
 
@@ -72,7 +55,6 @@ export default function GoodToKnowPage() {
               <li>Prior equal-length period fetch for comparison readiness</li>
               <li>Generated reports table</li>
               <li>User email preview</li>
-              <li>Optional upload fallback mode</li>
             </ul>
           </article>
 
@@ -98,63 +80,12 @@ export default function GoodToKnowPage() {
           </article>
 
           <article className={styles.card}>
-            <h2>Fallback uploads</h2>
+            <h2>Current input sources</h2>
             <ul className={styles.list}>
-              <li>`action_logs.csv`, `.xls`, `.xlsx`</li>
-              <li>`project_fees_by_department_by_month.csv` and Excel equivalents</li>
-              <li>`department_breakdown_report.csv` and Excel equivalents</li>
-              <li>`client_summary_report.csv` and Excel equivalents</li>
-            </ul>
-          </article>
-
-          <article className={styles.card}>
-            <h2>Action Logs requirements</h2>
-            <p className={styles.bodyText}>CSV must contain these columns:</p>
-            <ul className={styles.chipList}>
-              {actionLogColumns.map((column) => (
-                <li key={column}>{column}</li>
-              ))}
-            </ul>
-            <p className={styles.bodyText}>Excel logical columns: `ID`, `User Email`, `Action`, `Created`, `Payload`.</p>
-          </article>
-
-          <article className={styles.card}>
-            <h2>Project Fees requirements</h2>
-            <p className={styles.bodyText}>Required columns:</p>
-            <ul className={styles.chipList}>
-              {projectFeeColumns.map((column) => (
-                <li key={column}>{column}</li>
-              ))}
-            </ul>
-            <p className={styles.bodyText}>Any column after `Total Fees` is treated as a dynamic department allocation column.</p>
-          </article>
-
-          <article className={styles.card}>
-            <h2>Department Breakdown requirements</h2>
-            <ul className={styles.chipList}>
-              {departmentBreakdownColumns.map((column) => (
-                <li key={column}>{column}</li>
-              ))}
-            </ul>
-          </article>
-
-          <article className={styles.card}>
-            <h2>Client Summary requirements</h2>
-            <ul className={styles.chipList}>
-              {clientSummaryColumns.map((column) => (
-                <li key={column}>{column}</li>
-              ))}
-            </ul>
-          </article>
-
-          <article className={styles.card}>
-            <h2>Fallback validation behavior</h2>
-            <ul className={styles.list}>
-              <li>Unsupported files are rejected with validation messages.</li>
-              <li>Empty files are rejected.</li>
-              <li>Extra harmless columns are tolerated where supported.</li>
-              <li>Accepted fallback uploads are used only in the current browser session.</li>
-              <li>Upload mode stays separate from API-generated report data.</li>
+              <li>The organization tree comes from `All_Users_API_Key`.</li>
+              <li>User activity comes from `Users_Activity_API_Key`.</li>
+              <li>Both requests use `API_Secret_Key` as the bearer token.</li>
+              <li>The current release no longer exposes manual upload mode in the product UI.</li>
             </ul>
           </article>
         </section>

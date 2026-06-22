@@ -35,7 +35,7 @@ export const reportGenerationRequestSchema = z
   .object({
     startDate: z.string().date(),
     endDate: z.string().date(),
-    mode: z.enum(["api", "upload-fallback"]).default("api"),
+    mode: z.literal("api").default("api"),
   })
   .refine((value) => value.startDate <= value.endDate, {
     path: ["endDate"],
