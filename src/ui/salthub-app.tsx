@@ -131,11 +131,20 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
 
 function getDefaultDates() {
   const now = new Date();
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
+
+  const formatDateInputValue = (value: Date) => {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   return {
-    startDate: start.toISOString().slice(0, 10),
-    endDate: end.toISOString().slice(0, 10),
+    startDate: formatDateInputValue(start),
+    endDate: formatDateInputValue(end),
+    maxDate: formatDateInputValue(end),
   };
 }
 
@@ -292,6 +301,7 @@ export function SalthubApp() {
                 <input
                   type="date"
                   value={startDate}
+                  max={defaults.maxDate}
                   onChange={(event) => setStartDate(event.target.value)}
                   className={styles.input}
                 />
@@ -301,6 +311,7 @@ export function SalthubApp() {
                 <input
                   type="date"
                   value={endDate}
+                  max={defaults.maxDate}
                   onChange={(event) => setEndDate(event.target.value)}
                   className={styles.input}
                 />
@@ -311,9 +322,6 @@ export function SalthubApp() {
               <button type="button" className={styles.primaryButton} onClick={handleFetchGenerate} disabled={isPending}>
                 {isPending ? "Generating..." : "Fetch and Generate"}
               </button>
-              <p className={styles.helperText}>
-                Eligible users must have `department === Account Management` and activity in the selected period.
-              </p>
             </div>
 
             {apiError ? <p className={styles.errorText}>{apiError}</p> : null}
