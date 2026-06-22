@@ -1,27 +1,18 @@
 import {
   actionLogCsvSchema,
-  analyticsPayloadSchema,
   clientSummarySchema,
   departmentBreakdownSchema,
-  frictionNoteBaseSchema,
-  frictionNotesJsonSchema,
   projectFeesBaseSchema,
-  userDirectoryCsvSchema,
-  userDirectoryJsonSchema,
 } from "@/schemas/contracts";
 import { parseCsvText } from "@/ingestion/csv";
-import { detectCsvKind, detectFormat, detectJsonKind } from "@/ingestion/detect";
+import { detectCsvKind, detectFormat } from "@/ingestion/detect";
 import { parseExcelFile } from "@/ingestion/excel";
-import { parseJsonText } from "@/ingestion/json";
 import type {
   FileKind,
   RawActionLog,
-  RawAnalyticsPayload,
   RawClientSummaryRow,
   RawDepartmentBreakdownRow,
-  RawFrictionNote,
   RawProjectFeesByDepartmentRow,
-  RawUserDirectoryRow,
   UploadArtifact,
   ValidationMessage,
 } from "@/lib/domain";
@@ -34,9 +25,6 @@ export interface ProcessedUpload {
   projectFeesByDepartment?: RawProjectFeesByDepartmentRow[];
   departmentBreakdown?: RawDepartmentBreakdownRow[];
   clientSummaries?: RawClientSummaryRow[];
-  frictionNotes?: RawFrictionNote[];
-  userDirectory?: RawUserDirectoryRow[];
-  analyticsPayloads?: RawAnalyticsPayload[];
 }
 
 function buildMessages(required: string[], headers: string[], allowUnknown: boolean): ValidationMessage[] {
@@ -99,59 +87,6 @@ function parseProjectRow(row: Record<string, string>) {
     totalFees: base.data["Total Fees"],
     departmentFees,
   } satisfies RawProjectFeesByDepartmentRow;
-}
-
-function normalizeTags(tags?: string | string[]) {
-  if (!tags) {
-    return undefined;
-  }
-
-  if (Array.isArray(tags)) {
-    return tags.map((tag) => tag.trim()).filter(Boolean);
-  }
-
-  return tags
-    .split(/[;,]/)
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-}
-
-function mapFrictionNote(input: {
-  note_id: string;
-  manager_id: string;
-  manager_name: string;
-  manager_email: string;
-  team: string;
-  leader_id: string;
-  leader_name: string;
-  department: string;
-  submitted_at: string;
-  reporting_period_start: string;
-  reporting_period_end: string;
-  note_text: string;
-  note_status?: string;
-  tags?: string | string[];
-  source?: string;
-  region?: string;
-}): RawFrictionNote {
-  return {
-    noteId: input.note_id,
-    managerId: input.manager_id,
-    managerName: input.manager_name,
-    managerEmail: input.manager_email,
-    team: input.team,
-    leaderId: input.leader_id,
-    leaderName: input.leader_name,
-    department: input.department,
-    submittedAt: input.submitted_at,
-    reportingPeriodStart: input.reporting_period_start,
-    reportingPeriodEnd: input.reporting_period_end,
-    noteText: input.note_text,
-    noteStatus: input.note_status,
-    tags: normalizeTags(input.tags),
-    source: input.source,
-    region: input.region,
-  };
 }
 
 export async function processUpload(file: File): Promise<ProcessedUpload> {
@@ -396,65 +331,6 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
           clientSummaries,
         };
       }
-      case "friction_notes": {
-        messages.push(
-          ...buildMessages(
-            [
-              "note_id",
-              "manager_id",
-              "manager_name",
-              "manager_email",
-              "team",
-              "leader_id",
-              "leader_name",
-              "department",
-              "submitted_at",
-              "reporting_period_start",
-              "reporting_period_end",
-              "note_text",
-            ],
-            parsed.headers,
-            true,
-          ),
-        );
-        const frictionNotes = parsed.rows
-          .map((row) => frictionNoteBaseSchema.safeParse(row))
-          .flatMap((result) => (result.success ? [mapFrictionNote(result.data)] : []));
-
-        return {
-          artifact: {
-            ...artifactBase,
-            detectedKind: kind,
-            status: messages.some((item) => item.level === "error") ? "error" : "validated",
-            messages,
-            rowCount,
-          },
-          kind,
-          frictionNotes,
-        };
-      }
-      case "user_directory": {
-        messages.push({
-          level: "info",
-          code: "user_directory_detected",
-          message: "User directory detected from CSV headers.",
-        });
-        const userDirectory = parsed.rows
-          .map((row) => userDirectoryCsvSchema.safeParse(row))
-          .flatMap((result) => (result.success ? [result.data satisfies RawUserDirectoryRow] : []));
-
-        return {
-          artifact: {
-            ...artifactBase,
-            detectedKind: kind,
-            status: messages.some((item) => item.level === "error") ? "error" : "validated",
-            messages,
-            rowCount,
-          },
-          kind,
-          userDirectory,
-        };
-      }
       default:
         return {
           artifact: {
@@ -466,7 +342,7 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
                 level: "error",
                 code: "unsupported_csv",
                 message:
-                  "Unsupported CSV schema. Supported CSV uploads are action logs, project fees by department, department breakdown, client summary, and user directory.",
+                  "Unsupported CSV schema. Supported CSV uploads are action logs, project fees by department, department breakdown, and client summary exports.",
               },
             ],
             rowCount,
@@ -474,111 +350,6 @@ export async function processUpload(file: File): Promise<ProcessedUpload> {
           kind: "unsupported",
         };
     }
-  }
-
-  if (format === "json") {
-    const parsed = parseJsonText(text);
-    messages.push(...parsed.messages);
-    kind = detectJsonKind(parsed.data);
-
-    if (kind === "friction_notes") {
-      const source = Array.isArray(parsed.data)
-        ? { friction_notes: parsed.data }
-        : parsed.data;
-      const validated = frictionNotesJsonSchema.safeParse(source);
-
-      if (!validated.success) {
-        messages.push({
-          level: "error",
-          code: "invalid_friction_notes_json",
-          message: "Friction note JSON must contain a friction_notes or notes array with canonical note fields.",
-        });
-      }
-
-      const noteRows = validated.success
-        ? (validated.data.friction_notes ?? validated.data.notes ?? [])
-        : [];
-
-      return {
-        artifact: {
-          ...artifactBase,
-          detectedKind: kind,
-          status: messages.some((item) => item.level === "error") ? "error" : "validated",
-          messages,
-          rowCount: noteRows.length,
-        },
-        kind,
-        frictionNotes: noteRows.map(mapFrictionNote),
-      };
-    }
-
-    if (kind === "user_directory") {
-      const source = Array.isArray(parsed.data) ? { users: parsed.data } : parsed.data;
-      const validated = userDirectoryJsonSchema.safeParse(source);
-
-      if (!validated.success) {
-        messages.push({
-          level: "error",
-          code: "invalid_user_directory_json",
-          message: "User directory JSON must include a users array with valid email fields.",
-        });
-      }
-
-      const userDirectory = validated.success ? validated.data.users : [];
-
-      return {
-        artifact: {
-          ...artifactBase,
-          detectedKind: kind,
-          status: messages.some((item) => item.level === "error") ? "error" : "validated",
-          messages,
-          rowCount: userDirectory.length,
-        },
-        kind,
-        userDirectory,
-      };
-    }
-
-    if (kind === "analytics_payload") {
-      const validated = analyticsPayloadSchema.safeParse(parsed.data);
-
-      if (!validated.success) {
-        messages.push({
-          level: "error",
-          code: "invalid_analytics_json",
-          message: "Analytics payload JSON did not match the expected summary/users/managers shape.",
-        });
-      }
-
-      return {
-        artifact: {
-          ...artifactBase,
-          detectedKind: kind,
-          status: messages.some((item) => item.level === "error") ? "error" : "validated",
-          messages,
-          rowCount: validated.success ? (validated.data.users?.length ?? 0) : 0,
-        },
-        kind,
-        analyticsPayloads: validated.success ? [validated.data] : [],
-      };
-    }
-
-    return {
-      artifact: {
-        ...artifactBase,
-        detectedKind: "unsupported",
-        status: "unsupported",
-        messages: [
-          {
-            level: "error",
-            code: "unsupported_json",
-            message: "Unsupported JSON schema. Supported JSON uploads are user directory feeds and analytics payloads.",
-          },
-        ],
-        rowCount: 0,
-      },
-      kind: "unsupported",
-    };
   }
 
   return {

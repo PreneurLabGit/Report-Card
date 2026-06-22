@@ -8,9 +8,9 @@
 }
 
 .header {
-  max-width: 1200px;
+  width: min(100%, 1680px);
   margin: 0 auto;
-  padding: 28px 16px 22px;
+  padding: 28px clamp(16px, 2vw, 28px) 22px;
 }
 
 .toastViewport {
@@ -148,7 +148,7 @@
 .heroContent {
   position: relative;
   z-index: 1;
-  padding: 32px;
+  padding: clamp(28px, 2.2vw, 40px);
   padding-top: 72px;
 }
 
@@ -189,12 +189,12 @@
 }
 
 .layout {
-  max-width: 1200px;
+  width: min(100%, 1680px);
   margin: 0 auto;
-  padding: 0 16px 40px;
+  padding: 0 clamp(16px, 2vw, 28px) 40px;
   display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.55fr);
+  gap: clamp(18px, 1.8vw, 28px);
 }
 
 .leftColumn,
@@ -203,7 +203,7 @@
 .sectionStack,
 .messageList {
   display: grid;
-  gap: 20px;
+  gap: clamp(18px, 1.6vw, 24px);
 }
 
 .rightColumn {
@@ -229,7 +229,7 @@
 
 .card,
 .previewCard {
-  padding: 22px;
+  padding: clamp(20px, 1.6vw, 28px);
 }
 
 .cardHeader,
@@ -495,7 +495,7 @@
 .summaryGrid {
   margin-top: 20px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
 }
 
@@ -663,5 +663,11 @@
 
   .uploadBox {
     min-height: 0;
+  }
+}
+
+@media (min-width: 1500px) {
+  .layout {
+    grid-template-columns: minmax(360px, 0.85fr) minmax(0, 1.7fr);
   }
 }

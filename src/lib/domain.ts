@@ -3,12 +3,9 @@ export type FileKind =
   | "project_fees_by_department_by_month"
   | "department_breakdown_report"
   | "client_summary_report"
-  | "friction_notes"
-  | "user_directory"
-  | "analytics_payload"
   | "unsupported";
 
-export type ParseFormat = "csv" | "excel" | "json" | "unknown";
+export type ParseFormat = "csv" | "excel" | "unknown";
 
 export type ValidationLevel = "info" | "warning" | "error";
 
@@ -62,61 +59,6 @@ export interface RawClientSummaryRow {
   totalRevenue: number;
 }
 
-export interface RawUserDirectoryRow {
-  id?: string;
-  email: string;
-  name?: string;
-  role?: string;
-  department?: string;
-  managerEmail?: string;
-  leaderEmail?: string;
-}
-
-export interface RawAnalyticsPayload {
-  users?: Array<Record<string, unknown>>;
-  managers?: Array<Record<string, unknown>>;
-  summary?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-export interface RawFrictionNote {
-  noteId: string;
-  managerId: string;
-  managerName: string;
-  managerEmail: string;
-  team: string;
-  leaderId: string;
-  leaderName: string;
-  department: string;
-  submittedAt: string;
-  reportingPeriodStart: string;
-  reportingPeriodEnd: string;
-  noteText: string;
-  noteStatus?: string;
-  tags?: string[];
-  source?: string;
-  region?: string;
-}
-
-export interface NormalizedUser {
-  id: string;
-  email: string;
-  name: string;
-  role?: string;
-  department?: string;
-  managerEmail?: string;
-  leaderEmail?: string;
-}
-
-export interface IndividualMetric {
-  subjectId: string;
-  subjectType: "user" | "manager" | "leader";
-  activityCount: number;
-  workflowScore?: number;
-  lastActivityAt?: string;
-}
-
 export interface DepartmentRollup {
   id: string;
   department: string;
@@ -131,91 +73,16 @@ export interface EnterpriseRollup {
   totalActions: number;
 }
 
-export type FrictionClassification = "Platform" | "Capability" | "Behavioral";
-
-export interface FrictionTheme {
-  id: string;
-  themeKey: string;
-  label: string;
-  keywords: string[];
-  classification?: FrictionClassification;
-  noteCount: number;
-  distinctManagerCount: number;
-  distinctTeamCount: number;
-  periods: string[];
-  evidenceSnippets: string[];
-  sampleManagerNames: string[];
-  summary: string;
-}
-
-export interface FrictionRollups {
-  allNotes: RawFrictionNote[];
-  byManagerId: Record<string, RawFrictionNote[]>;
-  byLeaderId: Record<string, RawFrictionNote[]>;
-  byDepartment: Record<string, RawFrictionNote[]>;
-  enterpriseThemes: FrictionTheme[];
-}
-
 export interface NormalizedDataset {
   uploads: UploadArtifact[];
   actionLogs: RawActionLog[];
   projectFeesByDepartment: RawProjectFeesByDepartmentRow[];
   departmentBreakdown: RawDepartmentBreakdownRow[];
   clientSummaries: RawClientSummaryRow[];
-  frictionNotes: RawFrictionNote[];
-  userDirectory: NormalizedUser[];
-  analyticsPayloads: RawAnalyticsPayload[];
-  individualMetrics: IndividualMetric[];
   departmentRollups: DepartmentRollup[];
   enterpriseRollup: EnterpriseRollup;
-  frictionRollups: FrictionRollups;
   missingSources: string[];
   duplicateUploads: string[];
-}
-
-export type ReportAudience = "user" | "manager" | "leader" | "departmentLead" | "elt";
-
-export interface ScoreBand {
-  score: number;
-  band: "green" | "yellow" | "red";
-  label: string;
-}
-
-export interface ReportSection {
-  title: string;
-  body: string;
-  availability: "available" | "placeholder" | "hidden";
-  tone?: "default" | "quote" | "summary";
-  bullets?: string[];
-  callout?: string;
-  classification?: FrictionClassification;
-}
-
-export interface ComparisonRow {
-  label: string;
-  value: string;
-  context?: string;
-}
-
-export interface ReportViewModel {
-  audience: ReportAudience;
-  title: string;
-  subtitle: string;
-  subjectLabel: string;
-  generatedAt: string;
-  score: ScoreBand;
-  metrics: Array<{ label: string; value: string; detail?: string }>;
-  comparisons: ComparisonRow[];
-  sections: ReportSection[];
-  notes: string[];
-  printHint: string;
-}
-
-export interface AudienceOption {
-  id: string;
-  audience: ReportAudience;
-  label: string;
-  subjectId?: string;
 }
 
 export interface SimpleReportSection {

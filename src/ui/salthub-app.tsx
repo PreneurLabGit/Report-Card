@@ -408,9 +408,7 @@ export function SalthubApp() {
                     <div className={styles.fileHeader}>
                       <div>
                         <strong>{upload.artifact.name}</strong>
-                        <p className={styles.muted}>
-                          {upload.artifact.detectedKind} · {upload.artifact.rowCount} rows
-                        </p>
+                        <p className={styles.muted}>{upload.artifact.detectedKind} · {upload.artifact.rowCount} rows</p>
                       </div>
                       <span className={`${styles.statusPill} ${styles[upload.artifact.status]}`}>
                         {upload.artifact.status}

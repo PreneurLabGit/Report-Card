@@ -4,27 +4,12 @@ import type { ProcessedUpload } from "@/ingestion/process-upload";
 import { normalizeDataset } from "@/normalization/normalize";
 
 describe("normalizeDataset", () => {
-  it("builds enterprise totals and users", () => {
+  it("builds enterprise totals from accepted upload types", () => {
     const processed: ProcessedUpload[] = [
-      {
-        kind: "user_directory",
-        artifact: {
-          id: "1",
-          name: "users.json",
-          size: 10,
-          format: "json",
-          detectedKind: "user_directory",
-          status: "validated",
-          messages: [],
-          rowCount: 1,
-          hash: "1",
-        },
-        userDirectory: [{ email: "person@example.com", name: "Person Example", role: "Manager" }],
-      },
       {
         kind: "action_logs",
         artifact: {
-          id: "2",
+          id: "1",
           name: "action_logs.csv",
           size: 10,
           format: "csv",
@@ -32,7 +17,7 @@ describe("normalizeDataset", () => {
           status: "validated",
           messages: [],
           rowCount: 1,
-          hash: "2",
+          hash: "1",
         },
         actionLogs: [
           {
@@ -44,12 +29,33 @@ describe("normalizeDataset", () => {
           },
         ],
       },
+      {
+        kind: "department_breakdown_report",
+        artifact: {
+          id: "2",
+          name: "department_breakdown_report.csv",
+          size: 10,
+          format: "csv",
+          detectedKind: "department_breakdown_report",
+          status: "validated",
+          messages: [],
+          rowCount: 1,
+          hash: "2",
+        },
+        departmentBreakdown: [
+          {
+            department: "Account Service",
+            totalFees: 1500,
+            percentOfTotal: 100,
+          },
+        ],
+      },
     ];
 
     const dataset = normalizeDataset(processed);
 
-    expect(dataset.userDirectory).toHaveLength(1);
     expect(dataset.enterpriseRollup.totalActions).toBe(1);
-    expect(dataset.individualMetrics[0]?.activityCount).toBe(1);
+    expect(dataset.enterpriseRollup.totalFees).toBe(1500);
+    expect(dataset.departmentRollups).toHaveLength(1);
   });
 });

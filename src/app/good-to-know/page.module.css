@@ -7,9 +7,9 @@
 }
 
 .shell {
-  max-width: 1180px;
+  width: min(100%, 1600px);
   margin: 0 auto;
-  padding: 28px 16px 40px;
+  padding: 28px clamp(16px, 2vw, 28px) 40px;
 }
 
 .hero {
@@ -17,7 +17,7 @@
   justify-content: space-between;
   gap: 20px;
   align-items: flex-start;
-  padding: 28px;
+  padding: clamp(24px, 2vw, 32px);
   border: 1px solid rgba(191, 219, 254, 0.95);
   border-radius: 28px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.94));
@@ -72,12 +72,12 @@
 .grid {
   margin-top: 22px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: clamp(18px, 1.6vw, 24px);
 }
 
 .card {
-  padding: 22px;
+  padding: clamp(20px, 1.6vw, 28px);
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.92);

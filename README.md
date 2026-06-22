@@ -8,6 +8,7 @@ Salthub Report Card is a simplified first-use Next.js app for testing SaltHub ex
 4. review the preview
 
 This build is intentionally lightweight. It does not center approval workflows, publishing flows, historical complexity, analytics JSON ingestion, or friction-note operations.
+It also does not include server-side auth, workflow APIs, or persistence in this first-use build.
 
 ## Supported upload types
 

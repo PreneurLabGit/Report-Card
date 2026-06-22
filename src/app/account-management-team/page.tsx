@@ -172,11 +172,11 @@ export default function AccountManagementTeamPage() {
                     <td className={styles.nameCell}>{member.name}</td>
                     <td>{member.email}</td>
                     <td>{member.role}</td>
-                    <td>{member.businessOwner || "—"}</td>
-                    <td>{member.client || "—"}</td>
+                    <td>{member.businessOwner || "-"}</td>
+                    <td>{member.client || "-"}</td>
                     <td>{member.superAdmin}</td>
                     <td>{member.department}</td>
-                    <td>{member.jobTitle || "—"}</td>
+                    <td>{member.jobTitle || "-"}</td>
                     <td>
                       <span className={styles.statusPill}>{member.status}</span>
                     </td>

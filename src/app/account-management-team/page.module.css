@@ -7,9 +7,9 @@
 }
 
 .shell {
-  max-width: 1280px;
+  width: min(100%, 1720px);
   margin: 0 auto;
-  padding: 28px 16px 40px;
+  padding: 28px clamp(16px, 2vw, 28px) 40px;
 }
 
 .hero {
@@ -17,7 +17,7 @@
   justify-content: space-between;
   gap: 20px;
   align-items: flex-start;
-  padding: 28px;
+  padding: clamp(24px, 2vw, 32px);
   border: 1px solid rgba(191, 219, 254, 0.95);
   border-radius: 28px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.94));
@@ -66,7 +66,7 @@
 
 .tableCard {
   margin-top: 22px;
-  padding: 16px;
+  padding: clamp(14px, 1.4vw, 20px);
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.92);
@@ -81,7 +81,7 @@
 
 .table {
   width: 100%;
-  min-width: 1200px;
+  min-width: 1320px;
   border-collapse: separate;
   border-spacing: 0;
 }
