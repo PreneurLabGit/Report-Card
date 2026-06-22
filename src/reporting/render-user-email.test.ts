@@ -79,4 +79,25 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("Your friction note from last week");
     expect(rendered.html).toContain("Temporary sample");
   });
+
+  it("renders the super admin template with sample leader sections", async () => {
+    const rendered = await renderUserEmailHtml({
+      ...baseReport,
+      userId: "sa-1",
+      userName: "Maya Patel",
+      role: "super_admin",
+      metrics: {
+        ...baseReport.metrics,
+        pipelineEntriesCreated: 9,
+        projectsConfirmed: 3,
+        reworkEvents: 1,
+      },
+    });
+
+    expect(rendered.templateMode).toBe("file-template");
+    expect(rendered.html).toContain("Where to spend coaching time");
+    expect(rendered.html).toContain("Friction themes across your span");
+    expect(rendered.html).toContain("Manager A");
+    expect(rendered.html).toContain("Temporary sample");
+  });
 });

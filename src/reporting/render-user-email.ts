@@ -20,6 +20,11 @@ const BUSINESS_OWNER_TEMPLATE_CANDIDATES = [
   path.join(/*turbopackIgnore: true*/ process.cwd(), "BO_email.html"),
 ];
 
+const SUPER_ADMIN_TEMPLATE_CANDIDATES = [
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "Super Admin_email.html"),
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "Super Admin_email.html"),
+];
+
 const CSS_TEMPLATE_CANDIDATES = [
   path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "report-card.css"),
   path.join(/*turbopackIgnore: true*/ process.cwd(), "report-card.css"),
@@ -57,6 +62,14 @@ let cachedBusinessOwnerTemplate:
   | null
   | undefined;
 
+let cachedSuperAdminTemplate:
+  | {
+      sourcePath: string;
+      contents: string;
+    }
+  | null
+  | undefined;
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -67,7 +80,7 @@ function escapeHtml(value: string) {
 
 async function loadOptionalFile(
   candidates: string[],
-  cacheRef: "generic" | "team-member" | "business-owner" | "css",
+  cacheRef: "generic" | "team-member" | "business-owner" | "super-admin" | "css",
 ): Promise<{ sourcePath: string; contents: string } | null> {
   const currentCache =
     cacheRef === "generic"
@@ -76,7 +89,9 @@ async function loadOptionalFile(
         ? cachedTeamMemberTemplate
         : cacheRef === "business-owner"
           ? cachedBusinessOwnerTemplate
-        : cachedCssTemplate;
+          : cacheRef === "super-admin"
+            ? cachedSuperAdminTemplate
+            : cachedCssTemplate;
 
   if (currentCache !== undefined) {
     return currentCache;
@@ -96,6 +111,8 @@ async function loadOptionalFile(
         cachedTeamMemberTemplate = value;
       } else if (cacheRef === "business-owner") {
         cachedBusinessOwnerTemplate = value;
+      } else if (cacheRef === "super-admin") {
+        cachedSuperAdminTemplate = value;
       } else {
         cachedCssTemplate = value;
       }
@@ -112,6 +129,8 @@ async function loadOptionalFile(
     cachedTeamMemberTemplate = null;
   } else if (cacheRef === "business-owner") {
     cachedBusinessOwnerTemplate = null;
+  } else if (cacheRef === "super-admin") {
+    cachedSuperAdminTemplate = null;
   } else {
     cachedCssTemplate = null;
   }
@@ -254,6 +273,57 @@ function buildManagerFrictionNote() {
     text: "Temporary sample friction note. This section will later use the real prior-week manager note once friction-note ingestion is configured.",
     attr: "Sample placeholder only - real friction-note routing is not configured yet.",
   };
+}
+
+function buildLeaderLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  return `Temporary leader-rollup preview: the full span comparison is not configured yet, but currently visible activity shows ${formatNumber(
+    report.metrics.pipelineEntriesCreated,
+  )} pipeline entr${report.metrics.pipelineEntriesCreated === 1 ? "y" : "ies"}, ${formatNumber(
+    report.metrics.projectsConfirmed,
+  )} confirmed project${report.metrics.projectsConfirmed === 1 ? "" : "s"}, and ${formatNumber(
+    report.metrics.reworkEvents,
+  )} rework event${report.metrics.reworkEvents === 1 ? "" : "s"}.`;
+}
+
+function buildLeaderCoachingItems() {
+  return [
+    "Temporary sample coaching note: prioritize the manager with the clearest drop in visible activity once real span-level scoring is configured.",
+    "Temporary sample coaching note: review rework patterns across the span to identify whether the estimate flow is unclear or being rushed.",
+    "Temporary sample coaching note: capture what is working on the strongest team and look for behavior worth porting across the rest of the span.",
+  ];
+}
+
+function buildLeaderFrictionTheme() {
+  return {
+    text: "Temporary sample friction theme. This section will later summarize the strongest repeated note across the leader span using the real friction-note pipeline.",
+    attr: "Sample placeholder only - leader friction aggregation is not configured yet.",
+  };
+}
+
+function buildLeaderManagerRows() {
+  return [
+    {
+      name: "Manager A",
+      status: "N/A",
+      score: "N/A",
+      active: "N/A",
+      confirmed: "N/A",
+    },
+    {
+      name: "Manager B",
+      status: "N/A",
+      score: "N/A",
+      active: "N/A",
+      confirmed: "N/A",
+    },
+    {
+      name: "Manager C",
+      status: "N/A",
+      score: "N/A",
+      active: "N/A",
+      confirmed: "N/A",
+    },
+  ];
 }
 
 function buildTemplateFields(report: NormalizedUserReport) {
@@ -451,6 +521,60 @@ async function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html"
   return injectFields(template.contents, fields);
 }
 
+async function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  const [template, css] = await Promise.all([
+    loadOptionalFile(SUPER_ADMIN_TEMPLATE_CANDIDATES, "super-admin"),
+    loadOptionalFile(CSS_TEMPLATE_CANDIDATES, "css"),
+  ]);
+
+  if (!template || !css) {
+    return null;
+  }
+
+  const statusVariant = getStatusVariant(report);
+  const coaching = buildLeaderCoachingItems();
+  const friction = buildLeaderFrictionTheme();
+  const rows = buildLeaderManagerRows();
+
+  const fields = {
+    embedded_css: `${css.contents}
+
+.status-tag--na { background: #f5f5f4; color: #6b7280; }
+.status-tag--na::before { background: #a8a29e; }
+`,
+    preheader: `${report.userName} leader bi-weekly preview`,
+    period_label: `TWO WEEKS ENDING ${formatWeekLabel(report.reportPeriod.endDate)}`,
+    status_class: statusVariant.statusClass,
+    status_text: statusVariant.statusText,
+    user_name: report.userName,
+    leader_title: `${humanizeTeam(report.department)} Leadership`,
+    leader_subline: `Managers: N/A · Expected users: N/A · Leader score: N/A`,
+    lede: buildLeaderLede(report),
+    manager_1_name: rows[0]?.name ?? "N/A",
+    manager_1_status: rows[0]?.status ?? "N/A",
+    manager_1_score: rows[0]?.score ?? "N/A",
+    manager_1_active: rows[0]?.active ?? "N/A",
+    manager_1_confirmed: rows[0]?.confirmed ?? "N/A",
+    manager_2_name: rows[1]?.name ?? "N/A",
+    manager_2_status: rows[1]?.status ?? "N/A",
+    manager_2_score: rows[1]?.score ?? "N/A",
+    manager_2_active: rows[1]?.active ?? "N/A",
+    manager_2_confirmed: rows[1]?.confirmed ?? "N/A",
+    manager_3_name: rows[2]?.name ?? "N/A",
+    manager_3_status: rows[2]?.status ?? "N/A",
+    manager_3_score: rows[2]?.score ?? "N/A",
+    manager_3_active: rows[2]?.active ?? "N/A",
+    manager_3_confirmed: rows[2]?.confirmed ?? "N/A",
+    coaching_1: coaching[0] ?? "",
+    coaching_2: coaching[1] ?? "",
+    coaching_3: coaching[2] ?? "",
+    friction_theme_text: friction.text,
+    friction_theme_attr: friction.attr,
+  };
+
+  return injectFields(template.contents, fields);
+}
+
 export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   if (report.role === "team_member") {
     const teamMemberHtml = await renderTeamMemberHtml(report);
@@ -469,6 +593,17 @@ export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "ht
     if (businessOwnerHtml) {
       return {
         html: businessOwnerHtml,
+        templateMode: "file-template" as const,
+      };
+    }
+  }
+
+  if (report.role === "super_admin") {
+    const superAdminHtml = await renderSuperAdminHtml(report);
+
+    if (superAdminHtml) {
+      return {
+        html: superAdminHtml,
         templateMode: "file-template" as const,
       };
     }
