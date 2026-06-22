@@ -23,10 +23,7 @@
 
 .layout {
   padding-bottom: 26px;
-  display: grid;
-  grid-template-columns: minmax(380px, 1fr) minmax(0, 1.2fr);
-  gap: clamp(18px, 1.8vw, 28px);
-  align-items: start;
+  display: block;
 }
 
 .fallbackShell {
@@ -212,7 +209,6 @@
 }
 
 .leftColumn,
-.rightColumn,
 .fileList,
 .sectionStack,
 .messageList,
@@ -255,6 +251,15 @@
   justify-content: space-between;
   gap: 14px;
   align-items: flex-start;
+}
+
+.previewHeader {
+  flex-wrap: wrap;
+}
+
+.previewHeader > div {
+  min-width: 0;
+  flex: 1 1 320px;
 }
 
 .cardHeader {
@@ -479,6 +484,13 @@
   gap: 12px;
 }
 
+.previewSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
 .summaryTile {
   padding: 18px;
   display: grid;
@@ -510,10 +522,10 @@
 }
 
 .previewMeta {
-  margin-top: 18px;
+  margin-top: 20px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
   min-width: 0;
 }
 
@@ -764,11 +776,16 @@
 }
 
 @media (max-width: 1180px) {
-  .layout,
   .fallbackGrid,
   .formGrid,
   .previewMeta {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .previewSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -794,6 +811,11 @@
   }
 
   .placeholderGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .previewSummaryGrid,
+  .previewMeta {
     grid-template-columns: 1fr;
   }
 

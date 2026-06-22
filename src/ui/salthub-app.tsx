@@ -123,7 +123,6 @@ function ApiPreviewPlaceholder() {
     <div className={styles.previewPlaceholder}>
       <div className={styles.previewPlaceholderBadge}>Preview</div>
       <h3>User email preview appears here</h3>
-      <p>Select a generated user report to inspect the final HTML preview and missing-field warnings.</p>
       <div className={styles.placeholderGrid}>
         <div className={styles.placeholderTile} />
         <div className={styles.placeholderTile} />
@@ -165,7 +164,7 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
         </section>
       ) : null}
 
-      <section className={styles.summaryGrid}>
+      <section className={styles.previewSummaryGrid}>
         <div className={styles.summaryTile}>
           <span>Recipient</span>
           <strong className={styles.summaryText}>{report.recipientEmail ?? "Missing"}</strong>
@@ -606,9 +605,7 @@ export function SalthubApp() {
               </div>
             )}
           </section>
-        </div>
 
-        <div className={styles.rightColumn}>
           <section className={styles.card}>
             <div className={styles.cardHeader}>
               <div>
