@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Salt Hub - Your Week</title>
+    <style>
+{{embedded_css}}
+    </style>
+  </head>
+  <body>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{preheader}}</div>
+    <main class="brief">
+      <div class="eyebrow">SALT HUB <span class="sep">/</span> WEEKLY ADOPTION BRIEF <span class="sep">/</span> YOUR WEEK</div>
+
+      <header class="head">
+        <div class="head__meta">
+          <span>{{week_label}}</span>
+          <span class="status-tag {{status_class}}">{{status_text}}</span>
+        </div>
+        <h1 class="head__title">Your week in Salt Hub, {{user_name}}</h1>
+        <p class="head__sub">{{team_label}} &middot; {{role_label}}</p>
+      </header>
+
+      <section class="lede">{{lede}}</section>
+
+      <section class="section">
+        <div class="section__label">Your activity</div>
+        <div class="nums nums--four">
+          <div>
+            <div class="num__value num__value--green">{{login_count}}</div>
+            <div class="num__label">Logins</div>
+            <div class="num__sub">{{login_sub}}</div>
+          </div>
+          <div>
+            <div class="num__value num__value--green">{{active_days_value}}</div>
+            <div class="num__label">Active days</div>
+            <div class="num__sub">{{active_days_sub}}</div>
+          </div>
+          <div>
+            <div class="num__value">{{last_active_value}}</div>
+            <div class="num__label">Last active</div>
+            <div class="num__sub">{{last_active_sub}}</div>
+          </div>
+          <div>
+            <div class="num__value">{{wow_delta_value}}</div>
+            <div class="num__label">Score WoW</div>
+            <div class="num__sub">{{wow_delta_sub}}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__label">What you got done</div>
+        <div class="nums">
+          <div>
+            <div class="num__value num__value--green">{{pipeline_entries_created}}</div>
+            <div class="num__label">Pipeline entries created</div>
+          </div>
+          <div>
+            <div class="num__value num__value--green">{{estimates_created}}</div>
+            <div class="num__label">Estimates created</div>
+          </div>
+          <div>
+            <div class="num__value num__value--green">{{estimates_submitted}}</div>
+            <div class="num__label">Estimates submitted</div>
+            <div class="num__sub">{{estimates_submitted_sub}}</div>
+          </div>
+          <div>
+            <div class="num__value num__value--green">{{approvals_received}}</div>
+            <div class="num__label">Approvals received</div>
+          </div>
+          <div>
+            <div class="num__value num__value--green">{{projects_confirmed}}</div>
+            <div class="num__label">Projects you confirmed</div>
+          </div>
+          <div>
+            <div class="num__value">{{rework_events}}</div>
+            <div class="num__label">Rework events</div>
+            <div class="num__sub">{{rework_sub}}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section__label">One observation</div>
+        <p class="prose">{{observation}}</p>
+      </section>
+
+      <footer class="foot">
+        This is a personal read just for you &middot; Used to help us improve Salt Hub, not to rank you<br />
+        Your manager sees a team rollup, not your individual card &middot;
+        <a href="https://support.saltxcai.com">Salt Hub Support</a>
+      </footer>
+    </main>
+  </body>
+</html>
