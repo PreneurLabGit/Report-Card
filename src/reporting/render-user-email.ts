@@ -1,74 +1,11 @@
-import { access, readFile } from "node:fs/promises";
-import path from "node:path";
-
 import type { NormalizedUserReport } from "@/lib/domain";
 import { formatDate, formatNumber } from "@/lib/format";
-
-const GENERIC_TEMPLATE_CANDIDATES = [
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "User_email.html"),
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "user_email.html"),
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "User_email.html"),
-];
-
-const TEAM_MEMBER_TEMPLATE_CANDIDATES = [
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "teammember_email.html"),
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "teammember_email.html"),
-];
-
-const BUSINESS_OWNER_TEMPLATE_CANDIDATES = [
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "BO_email.html"),
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "BO_email.html"),
-];
-
-const SUPER_ADMIN_TEMPLATE_CANDIDATES = [
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "Super Admin_email.html"),
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "Super Admin_email.html"),
-];
-
-const CSS_TEMPLATE_CANDIDATES = [
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "report-card.css"),
-  path.join(/*turbopackIgnore: true*/ process.cwd(), "report-card.css"),
-];
-
-let cachedGenericTemplate:
-  | {
-      sourcePath: string;
-      contents: string;
-    }
-  | null
-  | undefined;
-
-let cachedTeamMemberTemplate:
-  | {
-      sourcePath: string;
-      contents: string;
-    }
-  | null
-  | undefined;
-
-let cachedCssTemplate:
-  | {
-      sourcePath: string;
-      contents: string;
-    }
-  | null
-  | undefined;
-
-let cachedBusinessOwnerTemplate:
-  | {
-      sourcePath: string;
-      contents: string;
-    }
-  | null
-  | undefined;
-
-let cachedSuperAdminTemplate:
-  | {
-      sourcePath: string;
-      contents: string;
-    }
-  | null
-  | undefined;
+import {
+  BUSINESS_OWNER_TEMPLATE,
+  REPORT_CARD_CSS,
+  SUPER_ADMIN_TEMPLATE,
+  TEAM_MEMBER_TEMPLATE,
+} from "@/reporting/email-template-assets";
 
 function escapeHtml(value: string) {
   return value
@@ -76,66 +13,6 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-async function loadOptionalFile(
-  candidates: string[],
-  cacheRef: "generic" | "team-member" | "business-owner" | "super-admin" | "css",
-): Promise<{ sourcePath: string; contents: string } | null> {
-  const currentCache =
-    cacheRef === "generic"
-      ? cachedGenericTemplate
-      : cacheRef === "team-member"
-        ? cachedTeamMemberTemplate
-        : cacheRef === "business-owner"
-          ? cachedBusinessOwnerTemplate
-          : cacheRef === "super-admin"
-            ? cachedSuperAdminTemplate
-            : cachedCssTemplate;
-
-  if (currentCache !== undefined) {
-    return currentCache;
-  }
-
-  for (const resolved of candidates) {
-    try {
-      await access(resolved);
-      const value = {
-        sourcePath: resolved,
-        contents: await readFile(resolved, "utf8"),
-      };
-
-      if (cacheRef === "generic") {
-        cachedGenericTemplate = value;
-      } else if (cacheRef === "team-member") {
-        cachedTeamMemberTemplate = value;
-      } else if (cacheRef === "business-owner") {
-        cachedBusinessOwnerTemplate = value;
-      } else if (cacheRef === "super-admin") {
-        cachedSuperAdminTemplate = value;
-      } else {
-        cachedCssTemplate = value;
-      }
-
-      return value;
-    } catch {
-      continue;
-    }
-  }
-
-  if (cacheRef === "generic") {
-    cachedGenericTemplate = null;
-  } else if (cacheRef === "team-member") {
-    cachedTeamMemberTemplate = null;
-  } else if (cacheRef === "business-owner") {
-    cachedBusinessOwnerTemplate = null;
-  } else if (cacheRef === "super-admin") {
-    cachedSuperAdminTemplate = null;
-  } else {
-    cachedCssTemplate = null;
-  }
-
-  return null;
 }
 
 function humanizeRole(role: string | null) {
@@ -238,10 +115,10 @@ function buildObservation(report: Omit<NormalizedUserReport, "html" | "templateM
   }
 
   if (report.metrics.reworkEvents === 0) {
-    return "Your current preview shows a clean workflow week with no recorded rework. Some scoring and activity-detail fields are still being configured, so this preview focuses on the metrics already available from SaltHub.";
+    return "Sample observation text. Your current preview shows a clean workflow week with no recorded rework. Some scoring and activity-detail fields are still being configured, so this preview focuses on the metrics already available from SaltHub.";
   }
 
-  return "Your current preview shows completed activity across the week, with some follow-up still visible in the rework count. Some scoring and activity-detail fields are still being configured, so this preview focuses on the metrics already available from SaltHub.";
+  return "Sample observation text. Your current preview shows completed activity across the week, with some follow-up still visible in the rework count. Some scoring and activity-detail fields are still being configured, so this preview focuses on the metrics already available from SaltHub.";
 }
 
 function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
@@ -256,11 +133,11 @@ function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateM
   }. Team-level scoring and broader adoption rollups are still being configured.`;
 }
 
-function buildManagerWhatStandsOut(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  return `Temporary sample insight: activity is visible in the current SaltHub export, but the full business-owner rollup logic is not configured yet. Use this section as a content placeholder while we wire the OpenAI-generated diagnostic summary on top of the real aggregated metrics.`;
+function buildManagerWhatStandsOut() {
+  return "Temporary sample insight: activity is visible in the current SaltHub export, but the full business-owner rollup logic is not configured yet. Use this section as a content placeholder while we wire the OpenAI-generated diagnostic summary on top of the real aggregated metrics.";
 }
 
-function buildManagerActions(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+function buildManagerActions() {
   return [
     "Check for stalled drafts. Use this placeholder recommendation until the live team-level diagnostic prompts are configured.",
     "Review submission flow blockers. This sample action stands in for the future OpenAI-authored coaching text.",
@@ -302,58 +179,10 @@ function buildLeaderFrictionTheme() {
 
 function buildLeaderManagerRows() {
   return [
-    {
-      name: "Manager A",
-      status: "N/A",
-      score: "N/A",
-      active: "N/A",
-      confirmed: "N/A",
-    },
-    {
-      name: "Manager B",
-      status: "N/A",
-      score: "N/A",
-      active: "N/A",
-      confirmed: "N/A",
-    },
-    {
-      name: "Manager C",
-      status: "N/A",
-      score: "N/A",
-      active: "N/A",
-      confirmed: "N/A",
-    },
+    { name: "Manager A", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" },
+    { name: "Manager B", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" },
+    { name: "Manager C", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" },
   ];
-}
-
-function buildTemplateFields(report: NormalizedUserReport) {
-  return {
-    report_period: report.reportPeriod.displayLabel,
-    report_week_start: report.reportPeriod.startDate,
-    user_name: report.userName,
-    recipientEmail: report.recipientEmail ?? "",
-    role_label: report.role ?? "",
-    team_label: report.department ?? "",
-    login_count: String(report.metrics.loginCount),
-    projects_confirmed: String(report.metrics.projectsConfirmed),
-    sent_for_business_owner_approval: String(report.metrics.sentForBusinessOwnerApproval),
-    pipeline_entries_created: String(report.metrics.pipelineEntriesCreated),
-    estimates_submitted: String(report.metrics.estimatesSubmitted),
-    approvals_completed: String(report.metrics.approvalsCompleted),
-    client_approvals: String(report.metrics.clientApprovals),
-    first_approvals: String(report.metrics.firstApprovals),
-    rework_events: String(report.metrics.reworkEvents),
-    estimates_created: report.metrics.estimatesCreated === null ? "N/A" : String(report.metrics.estimatesCreated),
-    active_days_count: report.metrics.activeDaysCount === null ? "N/A" : String(report.metrics.activeDaysCount),
-    last_activity_ts: report.metrics.lastActivityTs ?? "N/A",
-    score: report.metrics.score === null ? "N/A" : String(report.metrics.score),
-    prior_week_score: report.metrics.priorPeriodScore === null ? "N/A" : String(report.metrics.priorPeriodScore),
-    wow_score_delta: report.metrics.wowScoreDelta === null ? "N/A" : String(report.metrics.wowScoreDelta),
-    status_color: report.status.color ?? "N/A",
-    status_label: report.status.label ?? "N/A",
-    lede: report.content.lede,
-    observation: report.content.observation,
-  };
 }
 
 function renderFallbackHtml(report: NormalizedUserReport) {
@@ -414,41 +243,35 @@ function injectFields(template: string, fields: Record<string, string>) {
   }, template);
 }
 
-async function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  const [template, css] = await Promise.all([
-    loadOptionalFile(TEAM_MEMBER_TEMPLATE_CANDIDATES, "team-member"),
-    loadOptionalFile(CSS_TEMPLATE_CANDIDATES, "css"),
-  ]);
+function buildEmbeddedCss() {
+  return `${REPORT_CARD_CSS}
 
-  if (!template || !css) {
-    return null;
-  }
+.status-tag--na { background: #f5f5f4; color: #6b7280; }
+.status-tag--na::before { background: #a8a29e; }`;
+}
 
+function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   const statusVariant = getStatusVariant(report);
   const activeDaysConfigured = report.metrics.activeDaysCount !== null;
   const lastActivityConfigured = report.metrics.lastActivityTs !== null;
   const wowConfigured = report.metrics.wowScoreDelta !== null && report.metrics.priorPeriodScore !== null;
   const estimatesCreatedConfigured = report.metrics.estimatesCreated !== null;
   const approvalsReceivedConfigured = report.metrics.approvalsCompleted > 0;
-  const roleLabel = humanizeRole(report.role);
-  const teamLabel = humanizeTeam(report.department);
 
   const fields = {
-    embedded_css: `${css.contents}
-
-.status-tag--na { background: #f5f5f4; color: #6b7280; }
-.status-tag--na::before { background: #a8a29e; }
-`,
+    embedded_css: buildEmbeddedCss(),
     preheader: `${report.userName} weekly preview`,
     week_label: `WEEK OF ${formatWeekLabel(report.reportPeriod.startDate)}`,
     status_class: statusVariant.statusClass,
     status_text: statusVariant.statusText,
     user_name: report.userName,
-    team_label: teamLabel,
-    role_label: roleLabel,
+    team_label: humanizeTeam(report.department),
+    role_label: humanizeRole(report.role),
     lede: buildLede(report),
     login_count: formatNumber(report.metrics.loginCount),
-    login_sub: activeDaysConfigured ? `across ${formatNumber(report.metrics.activeDaysCount ?? 0)} day${report.metrics.activeDaysCount === 1 ? "" : "s"}` : "days not configured yet",
+    login_sub: activeDaysConfigured
+      ? `across ${formatNumber(report.metrics.activeDaysCount ?? 0)} day${report.metrics.activeDaysCount === 1 ? "" : "s"}`
+      : "days not configured yet",
     active_days_value: activeDaysConfigured ? formatNumber(report.metrics.activeDaysCount ?? 0) : "N/A",
     active_days_sub: activeDaysConfigured ? "tracked active days" : "not configured yet",
     last_active_value: lastActivityConfigured ? formatLastActiveValue(report.metrics.lastActivityTs) : "N/A",
@@ -469,36 +292,23 @@ async function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | 
     observation: buildObservation(report),
   };
 
-  return injectFields(template.contents, fields);
+  return injectFields(TEAM_MEMBER_TEMPLATE, fields);
 }
 
-async function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  const [template, css] = await Promise.all([
-    loadOptionalFile(BUSINESS_OWNER_TEMPLATE_CANDIDATES, "business-owner"),
-    loadOptionalFile(CSS_TEMPLATE_CANDIDATES, "css"),
-  ]);
-
-  if (!template || !css) {
-    return null;
-  }
-
+function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   const statusVariant = getStatusVariant(report);
-  const actions = buildManagerActions(report);
+  const actions = buildManagerActions();
   const friction = buildManagerFrictionNote();
 
   const fields = {
-    embedded_css: `${css.contents}
-
-.status-tag--na { background: #f5f5f4; color: #6b7280; }
-.status-tag--na::before { background: #a8a29e; }
-`,
+    embedded_css: buildEmbeddedCss(),
     preheader: `${report.userName} manager weekly preview`,
     week_label: `WEEK OF ${formatWeekLabel(report.reportPeriod.startDate)}`,
     status_class: statusVariant.statusClass,
     status_text: statusVariant.statusText,
     user_name: report.userName,
     team_title: humanizeTeam(report.department),
-    manager_subline: `Expected users: N/A · 4-week active rate: N/A`,
+    manager_subline: "Expected users: N/A - 4-week active rate: N/A",
     lede: buildManagerLede(report),
     active_users_value: "N/A",
     active_users_sub: "team active-user rollup not configured yet",
@@ -510,7 +320,7 @@ async function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html"
     projects_confirmed: formatNumber(report.metrics.projectsConfirmed),
     rework_events: formatNumber(report.metrics.reworkEvents),
     rework_sub: report.metrics.reworkEvents === 0 ? "no rework recorded" : "rework activity recorded",
-    what_stands_out: buildManagerWhatStandsOut(report),
+    what_stands_out: buildManagerWhatStandsOut(),
     worth_doing_1: actions[0] ?? "",
     worth_doing_2: actions[1] ?? "",
     worth_doing_3: actions[2] ?? "",
@@ -518,37 +328,24 @@ async function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html"
     friction_note_attr: friction.attr,
   };
 
-  return injectFields(template.contents, fields);
+  return injectFields(BUSINESS_OWNER_TEMPLATE, fields);
 }
 
-async function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  const [template, css] = await Promise.all([
-    loadOptionalFile(SUPER_ADMIN_TEMPLATE_CANDIDATES, "super-admin"),
-    loadOptionalFile(CSS_TEMPLATE_CANDIDATES, "css"),
-  ]);
-
-  if (!template || !css) {
-    return null;
-  }
-
+function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   const statusVariant = getStatusVariant(report);
   const coaching = buildLeaderCoachingItems();
   const friction = buildLeaderFrictionTheme();
   const rows = buildLeaderManagerRows();
 
   const fields = {
-    embedded_css: `${css.contents}
-
-.status-tag--na { background: #f5f5f4; color: #6b7280; }
-.status-tag--na::before { background: #a8a29e; }
-`,
+    embedded_css: buildEmbeddedCss(),
     preheader: `${report.userName} leader bi-weekly preview`,
     period_label: `TWO WEEKS ENDING ${formatWeekLabel(report.reportPeriod.endDate)}`,
     status_class: statusVariant.statusClass,
     status_text: statusVariant.statusText,
     user_name: report.userName,
     leader_title: `${humanizeTeam(report.department)} Leadership`,
-    leader_subline: `Managers: N/A · Expected users: N/A · Leader score: N/A`,
+    leader_subline: "Managers: N/A - Expected users: N/A - Leader score: N/A",
     lede: buildLeaderLede(report),
     manager_1_name: rows[0]?.name ?? "N/A",
     manager_1_status: rows[0]?.status ?? "N/A",
@@ -572,54 +369,33 @@ async function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | 
     friction_theme_attr: friction.attr,
   };
 
-  return injectFields(template.contents, fields);
+  return injectFields(SUPER_ADMIN_TEMPLATE, fields);
 }
 
 export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   if (report.role === "team_member") {
-    const teamMemberHtml = await renderTeamMemberHtml(report);
-
-    if (teamMemberHtml) {
-      return {
-        html: teamMemberHtml,
-        templateMode: "file-template" as const,
-      };
-    }
+    return {
+      html: renderTeamMemberHtml(report),
+      templateMode: "file-template" as const,
+    };
   }
 
   if (report.role === "business_owner") {
-    const businessOwnerHtml = await renderBusinessOwnerHtml(report);
-
-    if (businessOwnerHtml) {
-      return {
-        html: businessOwnerHtml,
-        templateMode: "file-template" as const,
-      };
-    }
+    return {
+      html: renderBusinessOwnerHtml(report),
+      templateMode: "file-template" as const,
+    };
   }
 
   if (report.role === "super_admin") {
-    const superAdminHtml = await renderSuperAdminHtml(report);
-
-    if (superAdminHtml) {
-      return {
-        html: superAdminHtml,
-        templateMode: "file-template" as const,
-      };
-    }
-  }
-
-  const template = await loadOptionalFile(GENERIC_TEMPLATE_CANDIDATES, "generic");
-
-  if (!template) {
     return {
-      html: renderFallbackHtml({ ...report, html: "", templateMode: "fallback-template" }),
-      templateMode: "fallback-template" as const,
+      html: renderSuperAdminHtml(report),
+      templateMode: "file-template" as const,
     };
   }
 
   return {
-    html: injectFields(template.contents, buildTemplateFields({ ...report, html: "", templateMode: "file-template" })),
-    templateMode: "file-template" as const,
+    html: renderFallbackHtml({ ...report, html: "", templateMode: "fallback-template" }),
+    templateMode: "fallback-template" as const,
   };
 }
