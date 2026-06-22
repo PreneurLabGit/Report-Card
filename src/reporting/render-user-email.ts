@@ -15,6 +15,11 @@ const TEAM_MEMBER_TEMPLATE_CANDIDATES = [
   path.join(/*turbopackIgnore: true*/ process.cwd(), "teammember_email.html"),
 ];
 
+const BUSINESS_OWNER_TEMPLATE_CANDIDATES = [
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "BO_email.html"),
+  path.join(/*turbopackIgnore: true*/ process.cwd(), "BO_email.html"),
+];
+
 const CSS_TEMPLATE_CANDIDATES = [
   path.join(/*turbopackIgnore: true*/ process.cwd(), "templates", "report-card.css"),
   path.join(/*turbopackIgnore: true*/ process.cwd(), "report-card.css"),
@@ -44,6 +49,14 @@ let cachedCssTemplate:
   | null
   | undefined;
 
+let cachedBusinessOwnerTemplate:
+  | {
+      sourcePath: string;
+      contents: string;
+    }
+  | null
+  | undefined;
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -54,13 +67,15 @@ function escapeHtml(value: string) {
 
 async function loadOptionalFile(
   candidates: string[],
-  cacheRef: "generic" | "team-member" | "css",
+  cacheRef: "generic" | "team-member" | "business-owner" | "css",
 ): Promise<{ sourcePath: string; contents: string } | null> {
   const currentCache =
     cacheRef === "generic"
       ? cachedGenericTemplate
       : cacheRef === "team-member"
         ? cachedTeamMemberTemplate
+        : cacheRef === "business-owner"
+          ? cachedBusinessOwnerTemplate
         : cachedCssTemplate;
 
   if (currentCache !== undefined) {
@@ -79,6 +94,8 @@ async function loadOptionalFile(
         cachedGenericTemplate = value;
       } else if (cacheRef === "team-member") {
         cachedTeamMemberTemplate = value;
+      } else if (cacheRef === "business-owner") {
+        cachedBusinessOwnerTemplate = value;
       } else {
         cachedCssTemplate = value;
       }
@@ -93,6 +110,8 @@ async function loadOptionalFile(
     cachedGenericTemplate = null;
   } else if (cacheRef === "team-member") {
     cachedTeamMemberTemplate = null;
+  } else if (cacheRef === "business-owner") {
+    cachedBusinessOwnerTemplate = null;
   } else {
     cachedCssTemplate = null;
   }
@@ -204,6 +223,37 @@ function buildObservation(report: Omit<NormalizedUserReport, "html" | "templateM
   }
 
   return "Your current preview shows completed activity across the week, with some follow-up still visible in the rework count. Some scoring and activity-detail fields are still being configured, so this preview focuses on the metrics already available from SaltHub.";
+}
+
+function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  return `This preview shows ${formatNumber(report.metrics.pipelineEntriesCreated)} pipeline entr${
+    report.metrics.pipelineEntriesCreated === 1 ? "y" : "ies"
+  }, ${formatNumber(report.metrics.estimatesSubmitted)} estimate${
+    report.metrics.estimatesSubmitted === 1 ? "" : "s"
+  } submitted, ${formatNumber(report.metrics.approvalsCompleted)} approval${
+    report.metrics.approvalsCompleted === 1 ? "" : "s"
+  } completed, and ${formatNumber(report.metrics.reworkEvents)} rework event${
+    report.metrics.reworkEvents === 1 ? "" : "s"
+  }. Team-level scoring and broader adoption rollups are still being configured.`;
+}
+
+function buildManagerWhatStandsOut(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  return `Temporary sample insight: activity is visible in the current SaltHub export, but the full business-owner rollup logic is not configured yet. Use this section as a content placeholder while we wire the OpenAI-generated diagnostic summary on top of the real aggregated metrics.`;
+}
+
+function buildManagerActions(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  return [
+    "Check for stalled drafts. Use this placeholder recommendation until the live team-level diagnostic prompts are configured.",
+    "Review submission flow blockers. This sample action stands in for the future OpenAI-authored coaching text.",
+    "Recognize visible progress. Temporary copy for now while the business-owner narrative layer is still being wired.",
+  ];
+}
+
+function buildManagerFrictionNote() {
+  return {
+    text: "Temporary sample friction note. This section will later use the real prior-week manager note once friction-note ingestion is configured.",
+    attr: "Sample placeholder only - real friction-note routing is not configured yet.",
+  };
 }
 
 function buildTemplateFields(report: NormalizedUserReport) {
@@ -352,6 +402,55 @@ async function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | 
   return injectFields(template.contents, fields);
 }
 
+async function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  const [template, css] = await Promise.all([
+    loadOptionalFile(BUSINESS_OWNER_TEMPLATE_CANDIDATES, "business-owner"),
+    loadOptionalFile(CSS_TEMPLATE_CANDIDATES, "css"),
+  ]);
+
+  if (!template || !css) {
+    return null;
+  }
+
+  const statusVariant = getStatusVariant(report);
+  const actions = buildManagerActions(report);
+  const friction = buildManagerFrictionNote();
+
+  const fields = {
+    embedded_css: `${css.contents}
+
+.status-tag--na { background: #f5f5f4; color: #6b7280; }
+.status-tag--na::before { background: #a8a29e; }
+`,
+    preheader: `${report.userName} manager weekly preview`,
+    week_label: `WEEK OF ${formatWeekLabel(report.reportPeriod.startDate)}`,
+    status_class: statusVariant.statusClass,
+    status_text: statusVariant.statusText,
+    user_name: report.userName,
+    team_title: humanizeTeam(report.department),
+    manager_subline: `Expected users: N/A · 4-week active rate: N/A`,
+    lede: buildManagerLede(report),
+    active_users_value: "N/A",
+    active_users_sub: "team active-user rollup not configured yet",
+    pipeline_entries_created: formatNumber(report.metrics.pipelineEntriesCreated),
+    pipeline_entries_sub: "based on currently available SaltHub activity",
+    estimates_submitted_value: "N/A",
+    estimates_submitted_sub: "team submission rollup not configured yet",
+    approvals_completed: formatNumber(report.metrics.approvalsCompleted),
+    projects_confirmed: formatNumber(report.metrics.projectsConfirmed),
+    rework_events: formatNumber(report.metrics.reworkEvents),
+    rework_sub: report.metrics.reworkEvents === 0 ? "no rework recorded" : "rework activity recorded",
+    what_stands_out: buildManagerWhatStandsOut(report),
+    worth_doing_1: actions[0] ?? "",
+    worth_doing_2: actions[1] ?? "",
+    worth_doing_3: actions[2] ?? "",
+    friction_note_text: friction.text,
+    friction_note_attr: friction.attr,
+  };
+
+  return injectFields(template.contents, fields);
+}
+
 export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   if (report.role === "team_member") {
     const teamMemberHtml = await renderTeamMemberHtml(report);
@@ -359,6 +458,17 @@ export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "ht
     if (teamMemberHtml) {
       return {
         html: teamMemberHtml,
+        templateMode: "file-template" as const,
+      };
+    }
+  }
+
+  if (report.role === "business_owner") {
+    const businessOwnerHtml = await renderBusinessOwnerHtml(report);
+
+    if (businessOwnerHtml) {
+      return {
+        html: businessOwnerHtml,
         templateMode: "file-template" as const,
       };
     }

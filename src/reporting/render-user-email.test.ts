@@ -56,4 +56,27 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("6");
     expect(rendered.html).toContain("N/A");
   });
+
+  it("renders the business owner template with sample manager sections", async () => {
+    const rendered = await renderUserEmailHtml({
+      ...baseReport,
+      userId: "bo-1",
+      userName: "Jordan Lee",
+      role: "business_owner",
+      metrics: {
+        ...baseReport.metrics,
+        pipelineEntriesCreated: 12,
+        estimatesSubmitted: 4,
+        approvalsCompleted: 3,
+        projectsConfirmed: 2,
+        reworkEvents: 1,
+      },
+    });
+
+    expect(rendered.templateMode).toBe("file-template");
+    expect(rendered.html).toContain("Worth doing this week");
+    expect(rendered.html).toContain("What stands out");
+    expect(rendered.html).toContain("Your friction note from last week");
+    expect(rendered.html).toContain("Temporary sample");
+  });
 });
