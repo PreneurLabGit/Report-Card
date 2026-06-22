@@ -477,10 +477,7 @@ export function SalthubApp() {
           <div className={styles.heroContent}>
             <div>
               <p className={styles.kicker}>Salthub Report Card</p>
-              <h1>Generate Account Management report cards from the SaltHub APIs</h1>
-              <p className={styles.heroSubcopy}>
-                API generation is now the primary workflow. Upload-based generation remains available below as a fallback mode and does not merge with API data.
-              </p>
+              <h1>Report Cards of Account Management Users of Salthub</h1>
             </div>
           </div>
         </div>
@@ -492,7 +489,6 @@ export function SalthubApp() {
             <div className={styles.cardHeader}>
               <div>
                 <h2>Report configuration</h2>
-                <p className={styles.muted}>Choose a reporting window, fetch activity and hierarchy data server-side, and generate user-level report cards.</p>
               </div>
               <span className={styles.cardBadge}>API-first</span>
             </div>
@@ -522,9 +518,8 @@ export function SalthubApp() {
             <div className={styles.cardHeader}>
               <div>
                 <h2>Generated reports</h2>
-                <p className={styles.muted}>Each row represents one eligible user returned by the activity API and matched to the organization tree.</p>
               </div>
-              <span className={styles.cardBadge}>Preview queue</span>
+              <span className={styles.cardBadge}>Users Preview Queue</span>
             </div>
 
             {apiResult ? (
@@ -618,7 +613,6 @@ export function SalthubApp() {
             <div className={styles.cardHeader}>
               <div>
                 <h2>Email preview</h2>
-                <p className={styles.muted}>This is the HTML that would be sent later once email delivery is configured.</p>
               </div>
               <span className={styles.cardBadge}>{apiResult ? apiResult.period.displayLabel : "Select a user"}</span>
             </div>
