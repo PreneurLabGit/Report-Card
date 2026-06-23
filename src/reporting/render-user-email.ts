@@ -1,11 +1,5 @@
 import type { NormalizedUserReport, ReportScopeEntry } from "@/lib/domain";
-import { formatDate, formatNumber } from "@/lib/format";
-import {
-  BUSINESS_OWNER_TEMPLATE,
-  REPORT_CARD_CSS,
-  SUPER_ADMIN_TEMPLATE,
-  TEAM_MEMBER_TEMPLATE,
-} from "@/reporting/email-template-assets";
+import { formatNumber } from "@/lib/format";
 
 function escapeHtml(value: string) {
   return value
@@ -13,6 +7,10 @@ function escapeHtml(value: string) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function formatMultilineText(value: string) {
+  return escapeHtml(value).replaceAll("\n", "<br />");
 }
 
 function humanizeRole(role: string | null) {
@@ -46,6 +44,22 @@ function formatWeekLabel(startDate: string) {
     .replace(",", "");
 }
 
+function formatPeriodEndingLabel(endDate: string) {
+  const parsed = new Date(endDate);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return `TWO WEEKS ENDING ${endDate.toUpperCase()}`;
+  }
+
+  return `TWO WEEKS ENDING ${new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+  })
+    .format(parsed)
+    .toUpperCase()
+    .replace(",", "")}`;
+}
+
 function formatLastActiveValue(lastActivityTs: string | null) {
   if (!lastActivityTs) {
     return "N/A";
@@ -62,13 +76,13 @@ function formatLastActiveValue(lastActivityTs: string | null) {
 
 function formatLastActiveDetail(lastActivityTs: string | null) {
   if (!lastActivityTs) {
-    return "N/A";
+    return "not configured yet";
   }
 
   const parsed = new Date(lastActivityTs);
 
   if (Number.isNaN(parsed.getTime())) {
-    return "N/A";
+    return "not configured yet";
   }
 
   return new Intl.DateTimeFormat("en-US", {
@@ -82,14 +96,32 @@ function formatLastActiveDetail(lastActivityTs: string | null) {
 function getStatusVariant(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   if (!report.status.color || !report.status.label) {
     return {
-      statusClass: "status-tag--na",
-      statusText: "N/A",
+      text: "N/A",
+      background: "#F5F5F4",
+      color: "#6B7280",
+    };
+  }
+
+  if (report.status.color === "green") {
+    return {
+      text: `${report.status.color.toUpperCase()} - ${report.status.label.toUpperCase()}`,
+      background: "#F0F9F8",
+      color: "#00807E",
+    };
+  }
+
+  if (report.status.color === "yellow") {
+    return {
+      text: `${report.status.color.toUpperCase()} - ${report.status.label.toUpperCase()}`,
+      background: "#FDF3E5",
+      color: "#C2710F",
     };
   }
 
   return {
-    statusClass: `status-tag--${report.status.color}`,
-    statusText: `${report.status.color.toUpperCase()} - ${report.status.label.toUpperCase()}`,
+    text: `${report.status.color.toUpperCase()} - ${report.status.label.toUpperCase()}`,
+    background: "#FCEDF3",
+    color: "#C0245F",
   };
 }
 
@@ -271,200 +303,483 @@ function buildLeaderManagerRows(entries: ReportScopeEntry[]) {
   return rows;
 }
 
-function renderFallbackHtml(report: NormalizedUserReport) {
-  const missingFields =
-    report.missingFields.length > 0
-      ? `<div style="margin:0 0 20px;padding:12px 14px;border:1px solid #fcd34d;border-radius:12px;background:#fffbeb;color:#92400e;">
-          <strong style="display:block;margin:0 0 6px;">Missing fields</strong>
-          <div>${escapeHtml(report.missingFields.join(", "))}</div>
-        </div>`
-      : "";
+const colors = {
+  ink: "#1A1A1A",
+  body: "#2B2B2B",
+  muted: "#6B6B6B",
+  faint: "#9A9A9A",
+  hairline: "#EDEDEA",
+  bg: "#FAFAF9",
+  paper: "#FFFFFF",
+  teal: "#00ADAA",
+  tealDeep: "#00807E",
+  tealTint: "#F0F9F8",
+  pink: "#ED347B",
+  pinkDeep: "#C0245F",
+  pinkTint: "#FCEDF3",
+  orange: "#F79124",
+  orangeDeep: "#C2710F",
+  orangeTint: "#FDF3E5",
+};
 
+function metricCell(params: {
+  value: string;
+  label: string;
+  sub?: string;
+  color?: string;
+  width?: string;
+}) {
+  return `<td valign="top" width="${params.width ?? "33.33%"}" style="padding:0 16px 22px 0;">
+    <div style="font-family:Arial, Helvetica, sans-serif;font-size:32px;line-height:1;font-weight:700;letter-spacing:-0.03em;color:${params.color ?? colors.ink};">${escapeHtml(params.value)}</div>
+    <div style="padding-top:7px;font-family:Arial, Helvetica, sans-serif;font-size:13px;line-height:1.35;color:${colors.body};">${escapeHtml(params.label)}</div>
+    ${params.sub ? `<div style="padding-top:4px;font-family:Arial, Helvetica, sans-serif;font-size:12px;line-height:1.45;color:${colors.faint};">${formatMultilineText(params.sub)}</div>` : ""}
+  </td>`;
+}
+
+function chunk<T>(items: T[], size: number) {
+  const rows: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    rows.push(items.slice(index, index + size));
+  }
+
+  return rows;
+}
+
+function metricsTable(
+  items: Array<{
+    value: string;
+    label: string;
+    sub?: string;
+    color?: string;
+  }>,
+  columns: number,
+) {
+  const cellWidth = `${100 / columns}%`;
+  const rows = chunk(items, columns)
+    .map((row) => {
+      const cells = [...row];
+
+      while (cells.length < columns) {
+        cells.push({ value: "", label: "", sub: "", color: colors.ink });
+      }
+
+      return `<tr>${cells
+        .map((item) =>
+          item.label
+            ? metricCell({ ...item, width: cellWidth })
+            : `<td width="${cellWidth}" style="padding:0 16px 22px 0;">&nbsp;</td>`,
+        )
+        .join("")}</tr>`;
+    })
+    .join("");
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>`;
+}
+
+function sectionLabel(label: string) {
+  return `<div style="padding-bottom:20px;font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${colors.muted};">${escapeHtml(label)}</div>`;
+}
+
+function sectionWrap(content: string, withBorder = true) {
+  return `<tr>
+    <td style="padding:32px 0;${withBorder ? `border-bottom:1px solid ${colors.hairline};` : ""}">
+      ${content}
+    </td>
+  </tr>`;
+}
+
+function statusPill(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  const variant = getStatusVariant(report);
+
+  return `<span style="display:inline-block;padding:7px 10px;font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;border-radius:3px;background:${variant.background};color:${variant.color};">${escapeHtml(variant.text)}</span>`;
+}
+
+function headerBlock(params: {
+  eyebrowSuffix: string;
+  metaLabel: string;
+  statusHtml: string;
+  title: string;
+  subline: string;
+}) {
+  return `
+    <tr>
+      <td style="padding:0 0 32px 0;font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${colors.pink};">
+        SALT HUB&nbsp;&nbsp;/&nbsp;&nbsp;${escapeHtml(params.eyebrowSuffix)}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:0 0 28px 0;border-bottom:1px solid ${colors.hairline};">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding:0 0 14px 0;font-family:Arial, Helvetica, sans-serif;font-size:12px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:${colors.muted};">
+              ${escapeHtml(params.metaLabel)}&nbsp;&nbsp;${params.statusHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="font-family:Arial, Helvetica, sans-serif;font-size:28px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:${colors.ink};">
+              ${params.title}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:8px;font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.muted};">
+              ${formatMultilineText(params.subline)}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  `;
+}
+
+function prose(text: string) {
+  return `<div style="font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.65;color:${colors.body};">${formatMultilineText(text)}</div>`;
+}
+
+function ledeBlock(text: string) {
+  return `<tr>
+    <td style="padding:32px 0;border-bottom:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:19px;line-height:1.45;letter-spacing:-0.005em;color:${colors.ink};">
+      ${formatMultilineText(text)}
+    </td>
+  </tr>`;
+}
+
+function actionsList(items: string[]) {
+  const rows = items
+    .slice(0, 3)
+    .map(
+      (item, index) => `<tr>
+        <td valign="top" width="24" style="padding:0 14px 18px 0;font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;color:${colors.pink};">${String(index + 1).padStart(2, "0")}</td>
+        <td valign="top" style="padding:0 0 18px 0;font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.6;color:${colors.body};">${formatMultilineText(item)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>`;
+}
+
+function quoteBlock(text: string, attribution: string) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+      <td width="2" style="background:${colors.teal};font-size:0;line-height:0;">&nbsp;</td>
+      <td style="padding:4px 0 4px 20px;">
+        <div style="font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.6;color:${colors.body};font-style:italic;">${formatMultilineText(text)}</div>
+        <div style="padding-top:10px;font-family:Arial, Helvetica, sans-serif;font-size:12px;line-height:1.45;color:${colors.faint};">${formatMultilineText(attribution)}</div>
+      </td>
+    </tr>
+  </table>`;
+}
+
+function compareTable(rows: Array<{ name: string; status: string; score: string; active: string; confirmed: string }>) {
+  const bodyRows = rows
+    .map(
+      (row) => `<tr>
+        <td style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.ink};font-weight:700;">${escapeHtml(row.name)}</td>
+        <td style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${escapeHtml(row.status)}</td>
+        <td align="right" style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};font-weight:700;">${escapeHtml(row.score)}</td>
+        <td align="right" style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${escapeHtml(row.active)}</td>
+        <td align="right" style="padding:14px 0 14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${escapeHtml(row.confirmed)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <thead>
+      <tr>
+        <th align="left" style="padding:0 10px 10px 0;font-family:Arial, Helvetica, sans-serif;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:${colors.muted};">Manager</th>
+        <th align="left" style="padding:0 10px 10px 10px;font-family:Arial, Helvetica, sans-serif;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:${colors.muted};">Status</th>
+        <th align="right" style="padding:0 10px 10px 10px;font-family:Arial, Helvetica, sans-serif;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:${colors.muted};">Score</th>
+        <th align="right" style="padding:0 10px 10px 10px;font-family:Arial, Helvetica, sans-serif;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:${colors.muted};">Active</th>
+        <th align="right" style="padding:0 0 10px 10px;font-family:Arial, Helvetica, sans-serif;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:${colors.muted};">Confirmed</th>
+      </tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+  </table>`;
+}
+
+function footerBlock(lines: string[]) {
+  return `<tr>
+    <td style="padding-top:30px;font-family:Arial, Helvetica, sans-serif;font-size:12px;line-height:1.55;color:${colors.faint};text-align:center;">
+      ${lines.map((line) => formatMultilineText(line)).join("<br />")}
+    </td>
+  </tr>`;
+}
+
+function wrapEmailDocument(params: {
+  preheader: string;
+  innerHtml: string;
+}) {
   return `<!doctype html>
-<html>
-  <body style="margin:0;padding:24px;background:#f3f6fb;font-family:Roboto,Arial,sans-serif;color:#0f172a;">
-    <main style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #dbeafe;border-radius:18px;padding:24px;">
-      <p style="margin:0 0 8px;color:#2563eb;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Salthub Report Card</p>
-      <h1 style="margin:0 0 8px;font-size:30px;line-height:1.1;">${escapeHtml(report.userName)}</h1>
-      <p style="margin:0 0 20px;color:#64748b;">${escapeHtml(report.reportPeriod.displayLabel)} - ${escapeHtml(report.role ?? "Role unavailable")} - ${escapeHtml(report.department ?? "Department unavailable")}</p>
-      ${missingFields}
-      <section style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 20px;">
-        <div style="padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fbff;"><strong style="display:block;font-size:12px;color:#64748b;text-transform:uppercase;">Recipient</strong><span>${escapeHtml(report.recipientEmail ?? "Missing email")}</span></div>
-        <div style="padding:14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fbff;"><strong style="display:block;font-size:12px;color:#64748b;text-transform:uppercase;">Preview status</strong><span>${escapeHtml(report.previewStatus)}</span></div>
-      </section>
-      <section style="margin:0 0 20px;">
-        <h2 style="margin:0 0 10px;font-size:18px;">Activity metrics</h2>
-        <ul style="margin:0;padding-left:18px;line-height:1.7;color:#334155;">
-          <li>Login count: ${formatNumber(report.metrics.loginCount)}</li>
-          <li>Projects confirmed: ${formatNumber(report.metrics.projectsConfirmed)}</li>
-          <li>Sent for business owner approval: ${formatNumber(report.metrics.sentForBusinessOwnerApproval)}</li>
-          <li>Pipeline entries created: ${formatNumber(report.metrics.pipelineEntriesCreated)}</li>
-          <li>Estimates submitted: ${formatNumber(report.metrics.estimatesSubmitted)}</li>
-          <li>First approvals: ${formatNumber(report.metrics.firstApprovals)}</li>
-          <li>Approvals completed: ${formatNumber(report.metrics.approvalsCompleted)}</li>
-          <li>Client approvals: ${formatNumber(report.metrics.clientApprovals)}</li>
-          <li>Rework events: ${formatNumber(report.metrics.reworkEvents)}</li>
-        </ul>
-      </section>
-      <section style="margin:0 0 20px;">
-        <h2 style="margin:0 0 10px;font-size:18px;">Score signals</h2>
-        <p style="margin:0;color:#334155;">Score: ${report.metrics.score ?? "N/A"} - Prior period score: ${report.metrics.priorPeriodScore ?? "N/A"} - Delta: ${report.metrics.wowScoreDelta ?? "N/A"}</p>
-      </section>
-      <section>
-        <h2 style="margin:0 0 10px;font-size:18px;">Unavailable fields</h2>
-        <p style="margin:0;color:#334155;">Estimates created: ${report.metrics.estimatesCreated ?? "N/A"} - Active days: ${report.metrics.activeDaysCount ?? "N/A"} - Last activity: ${report.metrics.lastActivityTs ? formatDate(report.metrics.lastActivityTs) : "N/A"}</p>
-      </section>
-    </main>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Salthub Report Card</title>
+  </head>
+  <body style="margin:0;padding:0;background:${colors.bg};">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escapeHtml(params.preheader)}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${colors.bg};margin:0;padding:0;">
+      <tr>
+        <td align="center" style="padding:24px 12px 48px 12px;">
+          <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:${colors.paper};">
+            <tr>
+              <td style="padding:56px 40px 56px 40px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  ${params.innerHtml}
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>`;
 }
 
-function injectFields(template: string, fields: Record<string, string>) {
-  return Object.entries(fields).reduce((result, [key, value]) => {
-    const escaped = escapeHtml(value);
-    return result
-      .replaceAll(`{{${key}}}`, escaped)
-      .replaceAll(`[[${key}]]`, escaped)
-      .replaceAll(`__${key}__`, escaped);
-  }, template);
-}
-
-function buildEmbeddedCss() {
-  return `${REPORT_CARD_CSS}
-
-.status-tag--na { background: #f5f5f4; color: #6b7280; }
-.status-tag--na::before { background: #a8a29e; }`;
-}
-
 function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  const statusVariant = getStatusVariant(report);
   const activeDaysConfigured = report.metrics.activeDaysCount !== null;
   const lastActivityConfigured = report.metrics.lastActivityTs !== null;
   const wowConfigured = report.metrics.wowScoreDelta !== null && report.metrics.priorPeriodScore !== null;
   const estimatesCreatedConfigured = report.metrics.estimatesCreated !== null;
   const approvalsReceivedConfigured = report.metrics.approvalsCompleted > 0;
 
-  const fields = {
-    embedded_css: buildEmbeddedCss(),
-    preheader: `${report.userName} weekly preview`,
-    week_label: `WEEK OF ${formatWeekLabel(report.reportPeriod.startDate)}`,
-    status_class: statusVariant.statusClass,
-    status_text: statusVariant.statusText,
-    user_name: report.userName,
-    team_label: humanizeTeam(report.department),
-    role_label: humanizeRole(report.role),
-    lede: buildLede(report),
-    login_count: formatNumber(report.metrics.loginCount),
-    login_sub: activeDaysConfigured
-      ? `across ${formatNumber(report.metrics.activeDaysCount ?? 0)} day${report.metrics.activeDaysCount === 1 ? "" : "s"}`
-      : "days not configured yet",
-    active_days_value: activeDaysConfigured ? formatNumber(report.metrics.activeDaysCount ?? 0) : "N/A",
-    active_days_sub: activeDaysConfigured ? "tracked active days" : "not configured yet",
-    last_active_value: lastActivityConfigured ? formatLastActiveValue(report.metrics.lastActivityTs) : "N/A",
-    last_active_sub: lastActivityConfigured ? formatLastActiveDetail(report.metrics.lastActivityTs) : "not configured yet",
-    wow_delta_value: wowConfigured
-      ? `${(report.metrics.wowScoreDelta ?? 0) > 0 ? "+" : ""}${formatNumber(report.metrics.wowScoreDelta ?? 0)}`
-      : "N/A",
-    wow_delta_sub: wowConfigured ? `from ${formatNumber(report.metrics.priorPeriodScore ?? 0)}` : "scoring not configured yet",
-    pipeline_entries_created: formatNumber(report.metrics.pipelineEntriesCreated),
-    estimates_created: estimatesCreatedConfigured ? formatNumber(report.metrics.estimatesCreated ?? 0) : "N/A",
-    estimates_submitted: formatNumber(report.metrics.estimatesSubmitted),
-    estimates_submitted_sub:
-      report.metrics.estimatesSubmitted > 0 ? "current configured count" : "no submitted estimates in this period",
-    approvals_received: approvalsReceivedConfigured ? formatNumber(report.metrics.approvalsCompleted) : "N/A",
-    projects_confirmed: formatNumber(report.metrics.projectsConfirmed),
-    rework_events: formatNumber(report.metrics.reworkEvents),
-    rework_sub: report.metrics.reworkEvents === 0 ? "clean week" : "follow-up activity recorded",
-    observation: buildObservation(report),
-  };
+  const body = `
+    ${headerBlock({
+      eyebrowSuffix: "WEEKLY ADOPTION BRIEF / YOUR WEEK",
+      metaLabel: formatWeekLabel(report.reportPeriod.startDate),
+      statusHtml: statusPill(report),
+      title: `Your week in Salt Hub, ${escapeHtml(report.userName)}`,
+      subline: `${humanizeTeam(report.department)} · ${humanizeRole(report.role)}`,
+    })}
+    ${ledeBlock(buildLede(report))}
+    ${sectionWrap(
+      `${sectionLabel("Your activity")}${metricsTable(
+        [
+          {
+            value: formatNumber(report.metrics.loginCount),
+            label: "Logins",
+            sub: activeDaysConfigured
+              ? `across ${formatNumber(report.metrics.activeDaysCount ?? 0)} day${report.metrics.activeDaysCount === 1 ? "" : "s"}`
+              : "days not configured yet",
+            color: colors.tealDeep,
+          },
+          {
+            value: activeDaysConfigured ? formatNumber(report.metrics.activeDaysCount ?? 0) : "N/A",
+            label: "Active days",
+            sub: activeDaysConfigured ? "tracked active days" : "not configured yet",
+            color: colors.tealDeep,
+          },
+          {
+            value: lastActivityConfigured ? formatLastActiveValue(report.metrics.lastActivityTs) : "N/A",
+            label: "Last active",
+            sub: lastActivityConfigured ? formatLastActiveDetail(report.metrics.lastActivityTs) : "not configured yet",
+          },
+          {
+            value: wowConfigured
+              ? `${(report.metrics.wowScoreDelta ?? 0) > 0 ? "+" : ""}${formatNumber(report.metrics.wowScoreDelta ?? 0)}`
+              : "N/A",
+            label: "Score WoW",
+            sub: wowConfigured ? `from ${formatNumber(report.metrics.priorPeriodScore ?? 0)}` : "scoring not configured yet",
+          },
+        ],
+        4,
+      )}`,
+    )}
+    ${sectionWrap(
+      `${sectionLabel("What you got done")}${metricsTable(
+        [
+          {
+            value: formatNumber(report.metrics.pipelineEntriesCreated),
+            label: "Pipeline entries created",
+            color: colors.tealDeep,
+          },
+          {
+            value: estimatesCreatedConfigured ? formatNumber(report.metrics.estimatesCreated ?? 0) : "N/A",
+            label: "Estimates created",
+            color: colors.tealDeep,
+          },
+          {
+            value: formatNumber(report.metrics.estimatesSubmitted),
+            label: "Estimates submitted",
+            sub: report.metrics.estimatesSubmitted > 0 ? "current configured count" : "no submitted estimates in this period",
+            color: colors.tealDeep,
+          },
+          {
+            value: approvalsReceivedConfigured ? formatNumber(report.metrics.approvalsCompleted) : "N/A",
+            label: "Approvals received",
+            color: colors.tealDeep,
+          },
+          {
+            value: formatNumber(report.metrics.projectsConfirmed),
+            label: "Projects you confirmed",
+            color: colors.tealDeep,
+          },
+          {
+            value: formatNumber(report.metrics.reworkEvents),
+            label: "Rework events",
+            sub: report.metrics.reworkEvents === 0 ? "clean week" : "follow-up activity recorded",
+          },
+        ],
+        3,
+      )}`,
+    )}
+    ${sectionWrap(`${sectionLabel("One observation")}${prose(buildObservation(report))}`, false)}
+    ${footerBlock([
+      "This is a personal read just for you · Used to help us improve Salt Hub, not to rank you",
+      "Your manager sees a team rollup, not your individual card · Salt Hub Support",
+    ])}
+  `;
 
-  return injectFields(TEAM_MEMBER_TEMPLATE, fields);
+  return wrapEmailDocument({
+    preheader: `${report.userName} weekly preview`,
+    innerHtml: body,
+  });
 }
 
 function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  const statusVariant = getStatusVariant(report);
   const actions = buildManagerActions(report);
   const friction = buildManagerFrictionNote();
   const activeChildCount = report.scopeSummary?.activeChildCount ?? 0;
   const eligibleChildCount = report.scopeSummary?.eligibleChildCount ?? 0;
 
-  const fields = {
-    embedded_css: buildEmbeddedCss(),
-    preheader: `${report.userName} manager weekly preview`,
-    week_label: `WEEK OF ${formatWeekLabel(report.reportPeriod.startDate)}`,
-    status_class: statusVariant.statusClass,
-    status_text: statusVariant.statusText,
-    user_name: report.userName,
-    team_title: humanizeTeam(report.department),
-    manager_subline: `Eligible team members: ${formatNumber(eligibleChildCount)} - Active this period: ${formatNumber(activeChildCount)}`,
-    lede: buildManagerLede(report),
-    active_users_value: `${formatNumber(activeChildCount)} of ${formatNumber(eligibleChildCount)}`,
-    active_users_sub:
-      eligibleChildCount === 0
-        ? "no eligible Account Management team members found"
-        : activeChildCount === 0
-          ? "no eligible team-member activity in this period"
-          : "eligible team-member activity in this period",
-    pipeline_entries_created: formatNumber(report.metrics.pipelineEntriesCreated),
-    pipeline_entries_sub: "based on currently available SaltHub activity",
-    estimates_submitted_value: "N/A",
-    estimates_submitted_sub: "team submission rollup not configured yet",
-    approvals_completed: formatNumber(report.metrics.approvalsCompleted),
-    projects_confirmed: formatNumber(report.metrics.projectsConfirmed),
-    rework_events: formatNumber(report.metrics.reworkEvents),
-    rework_sub: report.metrics.reworkEvents === 0 ? "no rework recorded" : "rework activity recorded",
-    what_stands_out: buildManagerWhatStandsOut(report),
-    worth_doing_1: actions[0] ?? "",
-    worth_doing_2: actions[1] ?? "",
-    worth_doing_3: actions[2] ?? "",
-    friction_note_text: friction.text,
-    friction_note_attr: friction.attr,
-  };
+  const body = `
+    ${headerBlock({
+      eyebrowSuffix: "WEEKLY ADOPTION BRIEF / MANAGER",
+      metaLabel: formatWeekLabel(report.reportPeriod.startDate),
+      statusHtml: statusPill(report),
+      title: `${escapeHtml(report.userName)} — ${escapeHtml(humanizeTeam(report.department))}`,
+      subline: `Eligible team members: ${formatNumber(eligibleChildCount)} · Active this period: ${formatNumber(activeChildCount)}`,
+    })}
+    ${ledeBlock(buildManagerLede(report))}
+    ${sectionWrap(
+      `${sectionLabel("The numbers")}${metricsTable(
+        [
+          {
+            value: `${formatNumber(activeChildCount)} of ${formatNumber(eligibleChildCount)}`,
+            label: "Active users",
+            sub:
+              eligibleChildCount === 0
+                ? "no eligible Account Management team members found"
+                : activeChildCount === 0
+                  ? "no eligible team-member activity in this period"
+                  : "eligible team-member activity in this period",
+            color: colors.orangeDeep,
+          },
+          {
+            value: formatNumber(report.metrics.pipelineEntriesCreated),
+            label: "Pipeline entries created",
+            sub: "based on currently available SaltHub activity",
+            color: colors.tealDeep,
+          },
+          {
+            value: "N/A",
+            label: "Estimates submitted",
+            sub: "team submission rollup not configured yet",
+            color: colors.orangeDeep,
+          },
+          {
+            value: formatNumber(report.metrics.approvalsCompleted),
+            label: "Approvals completed",
+            color: colors.tealDeep,
+          },
+          {
+            value: formatNumber(report.metrics.projectsConfirmed),
+            label: "Projects confirmed",
+            color: colors.tealDeep,
+          },
+          {
+            value: formatNumber(report.metrics.reworkEvents),
+            label: "Rework events",
+            sub: report.metrics.reworkEvents === 0 ? "no rework recorded" : "rework activity recorded",
+          },
+        ],
+        3,
+      )}`,
+    )}
+    ${sectionWrap(`${sectionLabel("What stands out")}${prose(buildManagerWhatStandsOut(report))}`)}
+    ${sectionWrap(`${sectionLabel("Worth doing this week")}${actionsList(actions)}`)}
+    ${sectionWrap(`${sectionLabel("Your friction note from last week")}${quoteBlock(friction.text, friction.attr)}`, false)}
+    ${footerBlock([
+      "Generated by the Salt Hub delivery pipeline · A diagnostic instrument, not a scorecard",
+      "Individual user data stays at the manager level · Salt Hub Support",
+    ])}
+  `;
 
-  return injectFields(BUSINESS_OWNER_TEMPLATE, fields);
+  return wrapEmailDocument({
+    preheader: `${report.userName} manager weekly preview`,
+    innerHtml: body,
+  });
 }
 
 function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  const statusVariant = getStatusVariant(report);
   const coaching = buildLeaderCoachingItems(report);
   const friction = buildLeaderFrictionTheme();
   const rows = buildLeaderManagerRows(report.scopeEntries);
   const activeChildCount = report.scopeSummary?.activeChildCount ?? 0;
   const eligibleChildCount = report.scopeSummary?.eligibleChildCount ?? 0;
 
-  const fields = {
-    embedded_css: buildEmbeddedCss(),
-    preheader: `${report.userName} leader bi-weekly preview`,
-    period_label: `TWO WEEKS ENDING ${formatWeekLabel(report.reportPeriod.endDate)}`,
-    status_class: statusVariant.statusClass,
-    status_text: statusVariant.statusText,
-    user_name: report.userName,
-    leader_title: `${humanizeTeam(report.department)} Leadership`,
-    leader_subline: `Business owners: ${formatNumber(eligibleChildCount)} - Active this period: ${formatNumber(activeChildCount)} - Leader score: N/A`,
-    lede: buildLeaderLede(report),
-    manager_1_name: rows[0]?.name ?? "N/A",
-    manager_1_status: rows[0]?.status ?? "N/A",
-    manager_1_score: rows[0]?.score ?? "N/A",
-    manager_1_active: rows[0]?.active ?? "N/A",
-    manager_1_confirmed: rows[0]?.confirmed ?? "N/A",
-    manager_2_name: rows[1]?.name ?? "N/A",
-    manager_2_status: rows[1]?.status ?? "N/A",
-    manager_2_score: rows[1]?.score ?? "N/A",
-    manager_2_active: rows[1]?.active ?? "N/A",
-    manager_2_confirmed: rows[1]?.confirmed ?? "N/A",
-    manager_3_name: rows[2]?.name ?? "N/A",
-    manager_3_status: rows[2]?.status ?? "N/A",
-    manager_3_score: rows[2]?.score ?? "N/A",
-    manager_3_active: rows[2]?.active ?? "N/A",
-    manager_3_confirmed: rows[2]?.confirmed ?? "N/A",
-    coaching_1: coaching[0] ?? "",
-    coaching_2: coaching[1] ?? "",
-    coaching_3: coaching[2] ?? "",
-    friction_theme_text: friction.text,
-    friction_theme_attr: friction.attr,
-  };
+  const body = `
+    ${headerBlock({
+      eyebrowSuffix: "BI-WEEKLY ADOPTION BRIEF / LEADER",
+      metaLabel: formatPeriodEndingLabel(report.reportPeriod.endDate),
+      statusHtml: statusPill(report),
+      title: `${escapeHtml(report.userName)} — ${escapeHtml(humanizeTeam(report.department))} Leadership`,
+      subline: `Business owners: ${formatNumber(eligibleChildCount)} · Active this period: ${formatNumber(activeChildCount)} · Leader score: N/A`,
+    })}
+    ${ledeBlock(buildLeaderLede(report))}
+    ${sectionWrap(`${sectionLabel("Your managers, side by side")}${compareTable(rows)}`)}
+    ${sectionWrap(`${sectionLabel("Where to spend coaching time")}${actionsList(coaching)}`)}
+    ${sectionWrap(`${sectionLabel("Friction themes across your span")}${quoteBlock(friction.text, friction.attr)}`, false)}
+    ${footerBlock([
+      "For leadership coaching, not for stack ranking · Individual user data stays at the manager level",
+      "Generated by the Salt Hub delivery pipeline · Salt Hub Support",
+    ])}
+  `;
 
-  return injectFields(SUPER_ADMIN_TEMPLATE, fields);
+  return wrapEmailDocument({
+    preheader: `${report.userName} leader bi-weekly preview`,
+    innerHtml: body,
+  });
+}
+
+function renderFallbackHtml(report: NormalizedUserReport) {
+  const missingFields =
+    report.missingFields.length > 0
+      ? `<tr><td style="padding:0 0 20px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:12px 14px;border:1px solid #fcd34d;background:#fffbeb;font-family:Arial, Helvetica, sans-serif;color:#92400e;"><strong style="display:block;padding-bottom:6px;">Missing fields</strong>${escapeHtml(report.missingFields.join(", "))}</td></tr></table></td></tr>`
+      : "";
+
+  return wrapEmailDocument({
+    preheader: `${report.userName} report preview`,
+    innerHtml: `
+      <tr>
+        <td style="padding:0 0 8px 0;font-family:Arial, Helvetica, sans-serif;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#2563eb;">Salthub Report Card</td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 8px 0;font-family:Arial, Helvetica, sans-serif;font-size:30px;line-height:1.1;font-weight:700;color:#0f172a;">${escapeHtml(report.userName)}</td>
+      </tr>
+      <tr>
+        <td style="padding:0 0 20px 0;font-family:Arial, Helvetica, sans-serif;font-size:15px;line-height:1.6;color:#64748b;">${escapeHtml(report.reportPeriod.displayLabel)} - ${escapeHtml(report.role ?? "Role unavailable")} - ${escapeHtml(report.department ?? "Department unavailable")}</td>
+      </tr>
+      ${missingFields}
+      ${sectionWrap(
+        `${sectionLabel("Activity metrics")}${prose(
+          `Login count: ${formatNumber(report.metrics.loginCount)}\nProjects confirmed: ${formatNumber(
+            report.metrics.projectsConfirmed,
+          )}\nSent for business owner approval: ${formatNumber(
+            report.metrics.sentForBusinessOwnerApproval,
+          )}\nPipeline entries created: ${formatNumber(
+            report.metrics.pipelineEntriesCreated,
+          )}\nEstimates submitted: ${formatNumber(report.metrics.estimatesSubmitted)}\nFirst approvals: ${formatNumber(
+            report.metrics.firstApprovals,
+          )}\nApprovals completed: ${formatNumber(report.metrics.approvalsCompleted)}\nClient approvals: ${formatNumber(
+            report.metrics.clientApprovals,
+          )}\nRework events: ${formatNumber(report.metrics.reworkEvents)}`,
+        )}`,
+        false,
+      )}
+    `,
+  });
 }
 
 export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {

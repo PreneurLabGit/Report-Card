@@ -56,7 +56,7 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.templateMode).toBe("file-template");
     expect(rendered.html).toContain("Your week in Salt Hub, Jamie");
     expect(rendered.html).toContain("SALT HUB");
-    expect(rendered.html).toContain("WEEK OF JUNE 16");
+    expect(rendered.html).toContain("JUNE 16");
     expect(rendered.html).toContain("Logins");
     expect(rendered.html).toContain("6");
     expect(rendered.html).toContain("N/A");
