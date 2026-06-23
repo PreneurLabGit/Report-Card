@@ -7,7 +7,7 @@ Salthub Report Card is now an API-first Next.js app for generating Account Manag
 3. generate eligible Account Management hierarchy report cards
 4. review the final HTML preview
 
-This build intentionally excludes email sending, AI-generated copy, server-side persistence, and review/publish workflows.
+This build intentionally excludes email sending, server-side persistence, and review/publish workflows. AI-generated narrative copy is now supported as an optional server-side layer when `OpenAI_API_Key` is configured.
 
 ## API-first flow
 
@@ -16,6 +16,7 @@ The app reads these server-side environment variables:
 - `All_Users_API_Key`
 - `Users_Activity_API_Key`
 - `API_Secret_Key`
+- `OpenAI_API_Key`
 
 The main page:
 
@@ -30,15 +31,16 @@ The main page:
 - builds hierarchy-scoped reports with these rules:
   - `team_member`: own activity only, and only when they have activity in the selected period
   - `business_owner`: direct eligible `team_member` activity rollup, with empty-state reports when no child activity exists
-  - `super_admin`: direct eligible `business_owner` personal-activity rollup, with empty-state reports when no child activity exists
+- `super_admin`: direct eligible `business_owner` personal-activity rollup, with empty-state reports when no child activity exists
 - surfaces missing fields instead of fabricating unavailable metrics
+- optionally generates role-specific narrative text through the OpenAI Responses API using `gpt-5-mini`
 
 Current API-first limitations:
 
 - no SendGrid sending yet
-- no AI-generated lede/observation yet
 - no official score formula yet, so score/prior-score/delta remain unavailable
 - no database or historical persistence
+- friction-note AI sections still use placeholders until that source is wired
 
 ## What the UI does
 
@@ -49,6 +51,7 @@ The main page now provides:
 - generated report dashboard table
 - exact HTML preview for a selected user
 - missing-field warnings
+- AI-written narrative sections when `OpenAI_API_Key` is configured
 
 ## Architecture
 
@@ -56,8 +59,9 @@ The code stays modular even though the UI is simple:
 
 - `src/app/api/report-cards/route.ts`: server-owned report generation endpoint
 - `src/lib/salthub-api.ts`: SaltHub API client
+- `src/lib/openai.ts`: server-only OpenAI client
 - `src/schemas/`: Zod validation contracts
-- `src/reporting/`: API report builder and preview rendering
+- `src/reporting/`: API report builder, AI narrative generation, and preview rendering
 - `src/ui/`: API-first report generation and preview experience
 - `src/lib/`: shared domain types and formatting
 
@@ -84,3 +88,4 @@ npm run build
 - Only users whose own department is exactly `Account Management` are eligible in the current release.
 - Only `team_member`, `business_owner`, and `super_admin` are enabled for report generation right now.
 - The current product flow uses the SaltHub APIs only.
+- OpenAI narrative generation is optional and falls back to deterministic placeholder copy if `OpenAI_API_Key` is missing or the request fails.

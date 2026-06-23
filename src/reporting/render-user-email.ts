@@ -126,6 +126,10 @@ function buildObservation(report: Omit<NormalizedUserReport, "html" | "templateM
 }
 
 function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.content.lede.trim().length > 0) {
+    return report.content.lede;
+  }
+
   if (report.scopeSummary?.emptyStateMessage) {
     return report.scopeSummary.emptyStateMessage;
   }
@@ -142,6 +146,10 @@ function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateM
 }
 
 function buildManagerWhatStandsOut(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.content.whatStandsOut.trim().length > 0) {
+    return report.content.whatStandsOut;
+  }
+
   if (report.scopeSummary?.emptyStateMessage) {
     return `${report.scopeSummary.emptyStateMessage} This business-owner preview is being kept as an empty-state shell until team-member activity appears in the selected period.`;
   }
@@ -158,6 +166,10 @@ function buildManagerWhatStandsOut(report: Omit<NormalizedUserReport, "html" | "
 }
 
 function buildManagerActions(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.content.worthDoingThisWeek.length >= 3) {
+    return report.content.worthDoingThisWeek.slice(0, 3);
+  }
+
   if (report.scopeSummary?.emptyStateMessage) {
     return [
       "No eligible active team members were found for this period. Keep this report as an empty-state preview until team activity is available.",
@@ -181,6 +193,10 @@ function buildManagerFrictionNote() {
 }
 
 function buildLeaderLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.content.lede.trim().length > 0) {
+    return report.content.lede;
+  }
+
   if (report.scopeSummary?.emptyStateMessage) {
     return report.scopeSummary.emptyStateMessage;
   }
@@ -195,6 +211,10 @@ function buildLeaderLede(report: Omit<NormalizedUserReport, "html" | "templateMo
 }
 
 function buildLeaderCoachingItems(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.content.coachingItems.length >= 3) {
+    return report.content.coachingItems.slice(0, 3);
+  }
+
   const activeEntries = report.scopeEntries.filter((entry) => entry.hasActivity);
 
   if (report.scopeSummary?.emptyStateMessage) {

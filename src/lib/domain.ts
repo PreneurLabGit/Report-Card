@@ -211,6 +211,9 @@ export interface NormalizedUserReport {
   content: {
     lede: string;
     observation: string;
+    whatStandsOut: string;
+    worthDoingThisWeek: string[];
+    coachingItems: string[];
   };
   missingFields: string[];
   previewStatus: "ready" | "missing_data" | "disabled";

@@ -13,6 +13,7 @@ import type {
 } from "@/lib/domain";
 import { flattenOrganizationTree } from "@/lib/organization-tree";
 import { buildReportPeriod, calculatePriorPeriod } from "@/lib/report-period";
+import { generateAiNarrativeContent } from "@/reporting/generate-ai-content";
 import { renderUserEmailHtml } from "@/reporting/render-user-email";
 
 const ACCOUNT_MANAGEMENT_DEPARTMENT = "Account Management";
@@ -230,6 +231,9 @@ async function buildUserReport(params: {
     content: {
       lede: "",
       observation: "",
+      whatStandsOut: "",
+      worthDoingThisWeek: [],
+      coachingItems: [],
     },
     missingFields,
     previewStatus: buildPreviewStatus(params.user, missingFields),
@@ -237,10 +241,15 @@ async function buildUserReport(params: {
     scopeEntries: params.scopeEntries,
   };
 
-  const rendered = await renderUserEmailHtml(reportBase);
+  const content = await generateAiNarrativeContent(reportBase);
+  const rendered = await renderUserEmailHtml({
+    ...reportBase,
+    content,
+  });
 
   return {
     ...reportBase,
+    content,
     html: rendered.html,
     templateMode: rendered.templateMode,
   } satisfies NormalizedUserReport;

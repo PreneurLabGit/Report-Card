@@ -63,10 +63,11 @@ export default function GoodToKnowPage() {
             <h2>Current limitations</h2>
             <ul className={styles.list}>
               <li>Email sending is not configured yet.</li>
-              <li>AI-generated narrative text is not enabled yet.</li>
+              <li>AI-generated narrative text runs only when `OpenAI_API_Key` is configured.</li>
               <li>The official scoring formula is not implemented yet.</li>
               <li>Score, prior score, and delta remain unavailable until that formula exists.</li>
               <li>No database or long-term persistence is configured in the current build.</li>
+              <li>Friction-note driven AI sections still use placeholders until that source is wired.</li>
             </ul>
           </article>
 
@@ -86,6 +87,7 @@ export default function GoodToKnowPage() {
               <li>The organization tree comes from `All_Users_API_Key`.</li>
               <li>User activity comes from `Users_Activity_API_Key`.</li>
               <li>Both requests use `API_Secret_Key` as the bearer token.</li>
+              <li>Optional narrative generation uses `OpenAI_API_Key` server-side.</li>
               <li>The current release no longer exposes manual upload mode in the product UI.</li>
             </ul>
           </article>

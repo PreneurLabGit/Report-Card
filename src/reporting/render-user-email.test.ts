@@ -39,6 +39,9 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
   content: {
     lede: "",
     observation: "",
+    whatStandsOut: "",
+    worthDoingThisWeek: [],
+    coachingItems: [],
   },
   missingFields: ["score"],
   previewStatus: "ready",
@@ -79,13 +82,20 @@ describe("renderUserEmailHtml", () => {
         activeChildCount: 3,
         emptyStateMessage: null,
       },
+      content: {
+        ...baseReport.content,
+        lede: "A productive week on output.",
+        whatStandsOut: "Five estimates were created but not submitted.",
+        worthDoingThisWeek: ["Check in with Alex and Sam.", "Walk one draft estimate with the team.", "Recognize Jamie."],
+      },
     });
 
     expect(rendered.templateMode).toBe("file-template");
     expect(rendered.html).toContain("Worth doing this week");
     expect(rendered.html).toContain("What stands out");
     expect(rendered.html).toContain("Your friction note from last week");
-    expect(rendered.html).toContain("Eligible team members: 5");
+    expect(rendered.html).toContain("Five estimates were created but not submitted.");
+    expect(rendered.html).toContain("Recognize Jamie.");
   });
 
   it("renders the super admin template with sample leader sections", async () => {
@@ -105,6 +115,11 @@ describe("renderUserEmailHtml", () => {
         eligibleChildCount: 3,
         activeChildCount: 2,
         emptyStateMessage: null,
+      },
+      content: {
+        ...baseReport.content,
+        lede: "Two managers look stable and one needs attention.",
+        coachingItems: ["Review Casey Brown first.", "Ask Sam Liu about rework.", "Learn from Reese Okafor."],
       },
       scopeEntries: [
         {
@@ -144,6 +159,6 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("Where to spend coaching time");
     expect(rendered.html).toContain("Friction themes across your span");
     expect(rendered.html).toContain("Jordan Lee");
-    expect(rendered.html).toContain("Business owners: 3");
+    expect(rendered.html).toContain("Review Casey Brown first.");
   });
 });
