@@ -308,7 +308,7 @@ export function SalthubApp() {
 
         pushToast({
           title: "API reports generated",
-          message: `${(payload as ApiReportResult).reports.length} eligible Account Management report${
+          message: `${(payload as ApiReportResult).reports.length} eligible hierarchy report${
             (payload as ApiReportResult).reports.length === 1 ? "" : "s"
           } prepared.`,
           tone: "success",
@@ -543,7 +543,7 @@ export function SalthubApp() {
                     <strong>{apiResult.summary.activityUserCount}</strong>
                   </div>
                   <div className={styles.summaryTile}>
-                    <span>Eligible AM users</span>
+                    <span>Eligible hierarchy users</span>
                     <strong>{apiResult.summary.eligibleDirectoryUserCount}</strong>
                   </div>
                   <div className={styles.summaryTile}>

@@ -30,7 +30,7 @@ function toSafeScopeEntries(entries: ReportScopeEntry[]) {
 
 function buildTeamMemberPrompt() {
   return [
-    "You write internal SaltHub adoption email copy for one team member.",
+    "You write internal SaltHub adoption email copy for one individual SaltHub user.",
     "Write concise, supportive, observational text in second person.",
     "Do not mention AI, the model, or hidden reasoning.",
     "Use only the provided metrics. Do not invent names, numbers, causes, dates, or activity.",
@@ -42,8 +42,8 @@ function buildTeamMemberPrompt() {
 function buildBusinessOwnerPrompt() {
   return [
     "You write internal SaltHub adoption email copy for one business owner.",
-    "Write diagnostic, workflow-focused text for a leader reviewing direct team members.",
-    "Use only the provided metrics and listed team-member names. Do not invent names, numbers, inactivity windows, causes, or recommendations unsupported by the payload.",
+    "Write diagnostic, workflow-focused text for a leader reviewing direct Account Management users.",
+    "Use only the provided metrics and listed user names. Do not invent names, numbers, inactivity windows, causes, or recommendations unsupported by the payload.",
     "Keep recommendations concrete but neutral. Do not shame users.",
     "If the evidence is weak, say so plainly and keep the guidance light.",
     "Return valid JSON matching the required schema.",
@@ -59,6 +59,16 @@ function buildSuperAdminPrompt() {
     "If evidence is weak, stay neutral and avoid over-claiming.",
     "Return valid JSON matching the required schema.",
   ].join(" ");
+}
+
+function isIndividualUserReportRole(role: NormalizedUserReport["role"]) {
+  return (
+    role === "team_member" ||
+    role === "project_lead" ||
+    role === "freelancer" ||
+    role === "contributor" ||
+    role === "department_owner"
+  );
 }
 
 async function generateTeamMemberContent(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
@@ -172,7 +182,7 @@ export async function generateAiNarrativeContent(report: Omit<NormalizedUserRepo
   }
 
   try {
-    if (report.role === "team_member") {
+    if (isIndividualUserReportRole(report.role)) {
       const generated = await generateTeamMemberContent(report);
       return {
         content: {

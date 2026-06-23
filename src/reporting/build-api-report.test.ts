@@ -10,7 +10,7 @@ const organizationTree: OrganizationTreeResponse = {
       userName: "Super Admin",
       email: "sa@example.com",
       role: "super_admin",
-      department: "Account Management",
+      department: "Creative",
       disabled: false,
       businessOwners: [
         {
@@ -18,7 +18,7 @@ const organizationTree: OrganizationTreeResponse = {
           userName: "Business Owner",
           email: "bo@example.com",
           role: "business_owner",
-          department: "Account Management",
+          department: "Media",
           disabled: false,
           teamMembers: [
             {
@@ -141,7 +141,7 @@ describe("flattenOrganizationTree", () => {
 });
 
 describe("buildApiReportResult", () => {
-  it("generates hierarchy-scoped reports only for enabled AM roles", async () => {
+  it("generates hierarchy-scoped reports for all eligible AM users and their parent hierarchy", async () => {
     const result = await buildApiReportResult({
       startDate: "2026-06-15",
       endDate: "2026-06-21",
@@ -154,13 +154,14 @@ describe("buildApiReportResult", () => {
       ["sa-1", "super_admin"],
       ["bo-1", "business_owner"],
       ["bo-2", "business_owner"],
+      ["tm-2", "project_lead"],
       ["tm-1", "team_member"],
     ]);
     expect(result.summary.skippedIneligibleActivityUserCount).toBe(1);
-    expect(result.summary.skippedUnsupportedRoleUserCount).toBe(1);
+    expect(result.summary.skippedUnsupportedRoleUserCount).toBe(0);
   });
 
-  it("builds business owner reports from direct AM team member activity only", async () => {
+  it("builds business owner reports from direct AM user activity only", async () => {
     const result = await buildApiReportResult({
       startDate: "2026-06-15",
       endDate: "2026-06-21",
@@ -172,18 +173,18 @@ describe("buildApiReportResult", () => {
     const ownerReport = result.reports.find((report) => report.userId === "bo-1");
     expect(ownerReport?.scopeSummary).toMatchObject({
       role: "business_owner",
-      eligibleChildCount: 1,
-      activeChildCount: 1,
+      eligibleChildCount: 2,
+      activeChildCount: 2,
       emptyStateMessage: null,
     });
-    expect(ownerReport?.metrics.loginCount).toBe(6);
+    expect(ownerReport?.metrics.loginCount).toBe(13);
     expect(ownerReport?.metrics.pipelineEntriesCreated).toBe(3);
     expect(ownerReport?.metrics.projectsConfirmed).toBe(1);
     expect(ownerReport?.metrics.reworkEvents).toBe(1);
-    expect(ownerReport?.scopeEntries.map((entry) => entry.userId)).toEqual(["tm-1"]);
+    expect(ownerReport?.scopeEntries.map((entry) => entry.userId)).toEqual(["tm-2", "tm-1"]);
   });
 
-  it("builds super admin reports from direct business owner personal activity", async () => {
+  it("builds super admin reports from direct business owner rollups only", async () => {
     const result = await buildApiReportResult({
       startDate: "2026-06-15",
       endDate: "2026-06-21",
@@ -199,8 +200,8 @@ describe("buildApiReportResult", () => {
       activeChildCount: 1,
       emptyStateMessage: null,
     });
-    expect(superAdminReport?.metrics.loginCount).toBe(4);
-    expect(superAdminReport?.metrics.pipelineEntriesCreated).toBe(2);
+    expect(superAdminReport?.metrics.loginCount).toBe(13);
+    expect(superAdminReport?.metrics.pipelineEntriesCreated).toBe(3);
     expect(superAdminReport?.scopeEntries.map((entry) => [entry.userId, entry.hasActivity])).toEqual([
       ["bo-1", true],
       ["bo-2", false],
@@ -214,7 +215,7 @@ describe("buildApiReportResult", () => {
       organizationTree,
       currentActivity: {
         ...currentActivity,
-        users: currentActivity.users.filter((user) => user.userId !== "bo-1" && user.userId !== "tm-1"),
+        users: currentActivity.users.filter((user) => !["bo-1", "tm-1", "tm-2"].includes(user.userId)),
       },
       priorActivity,
     });
@@ -223,8 +224,8 @@ describe("buildApiReportResult", () => {
     const idleOwnerReport = result.reports.find((report) => report.userId === "bo-2");
     const superAdminReport = result.reports.find((report) => report.userId === "sa-1");
 
-    expect(ownerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible team member activity");
-    expect(idleOwnerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management team members");
+    expect(ownerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management user activity");
+    expect(idleOwnerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management users");
     expect(superAdminReport?.scopeSummary?.emptyStateMessage).toContain("No eligible business owner activity");
     expect(result.summary.emptyStateReportCount).toBe(3);
   });

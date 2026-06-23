@@ -148,7 +148,14 @@ export interface DirectoryUser {
   managerUserId: string | null;
 }
 
-export type SupportedReportRole = "team_member" | "business_owner" | "super_admin";
+export type SupportedReportRole =
+  | "team_member"
+  | "project_lead"
+  | "freelancer"
+  | "contributor"
+  | "department_owner"
+  | "business_owner"
+  | "super_admin";
 
 export interface ReportScopeEntry {
   userId: string;

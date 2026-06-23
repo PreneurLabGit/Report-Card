@@ -18,8 +18,20 @@ import { generateAiNarrativeContent } from "@/reporting/generate-ai-content";
 import { renderUserEmailHtml } from "@/reporting/render-user-email";
 
 const ACCOUNT_MANAGEMENT_DEPARTMENT = "Account Management";
-const SUPPORTED_REPORT_ROLES: SupportedReportRole[] = ["team_member", "business_owner", "super_admin"];
+const INDIVIDUAL_REPORT_ROLES = [
+  "team_member",
+  "project_lead",
+  "freelancer",
+  "contributor",
+  "department_owner",
+] as const satisfies SupportedReportRole[];
+const SUPPORTED_REPORT_ROLES: SupportedReportRole[] = [
+  ...INDIVIDUAL_REPORT_ROLES,
+  "business_owner",
+  "super_admin",
+];
 const SUPPORTED_REPORT_ROLE_SET = new Set<string>(SUPPORTED_REPORT_ROLES);
+const INDIVIDUAL_REPORT_ROLE_SET = new Set<string>(INDIVIDUAL_REPORT_ROLES);
 
 interface AggregatedMetrics {
   loginCount: number;
@@ -96,8 +108,46 @@ function sumMetrics(users: ActivityUserSummary[]) {
   );
 }
 
+function isIndividualReportRole(role: string | null): role is (typeof INDIVIDUAL_REPORT_ROLES)[number] {
+  return role !== null && INDIVIDUAL_REPORT_ROLE_SET.has(role);
+}
+
 function isEligibleAccountManagementUser(user: DirectoryUser) {
-  return user.department === ACCOUNT_MANAGEMENT_DEPARTMENT;
+  return isIndividualReportRole(user.role) && user.department === ACCOUNT_MANAGEMENT_DEPARTMENT;
+}
+
+function getEligibleAccountManagementChildren(directoryUsers: DirectoryUser[], businessOwnerId: string) {
+  return sortUsers(
+    directoryUsers.filter((child) => child.managerUserId === businessOwnerId && isEligibleAccountManagementUser(child)),
+  );
+}
+
+function getEligibleBusinessOwnerChildren(directoryUsers: DirectoryUser[], superAdminId: string) {
+  return sortUsers(
+    directoryUsers.filter((child) => {
+      if (child.managerUserId !== superAdminId || child.role !== "business_owner") {
+        return false;
+      }
+
+      return child.department === ACCOUNT_MANAGEMENT_DEPARTMENT || getEligibleAccountManagementChildren(directoryUsers, child.userId).length > 0;
+    }),
+  );
+}
+
+function isEligibleReportUser(user: DirectoryUser, directoryUsers: DirectoryUser[]) {
+  if (isIndividualReportRole(user.role)) {
+    return isEligibleAccountManagementUser(user);
+  }
+
+  if (user.role === "business_owner") {
+    return user.department === ACCOUNT_MANAGEMENT_DEPARTMENT || getEligibleAccountManagementChildren(directoryUsers, user.userId).length > 0;
+  }
+
+  if (user.role === "super_admin") {
+    return user.department === ACCOUNT_MANAGEMENT_DEPARTMENT || getEligibleBusinessOwnerChildren(directoryUsers, user.userId).length > 0;
+  }
+
+  return false;
 }
 
 function isSupportedReportRole(role: string | null): role is SupportedReportRole {
@@ -142,17 +192,17 @@ function buildPreviewStatus(user: DirectoryUser, missingFields: string[]) {
 function buildEmptyStateMessage(role: SupportedReportRole, eligibleChildCount: number, activeChildCount: number) {
   if (role === "business_owner") {
     if (eligibleChildCount === 0) {
-      return "No eligible Account Management team members were found under this business owner.";
+      return "No eligible Account Management users were found under this business owner.";
     }
 
     if (activeChildCount === 0) {
-      return "No eligible team member activity was found for this business owner in the selected period.";
+      return "No eligible Account Management user activity was found for this business owner in the selected period.";
     }
   }
 
   if (role === "super_admin") {
     if (eligibleChildCount === 0) {
-      return "No eligible Account Management business owners were found under this super admin.";
+      return "No business owners with eligible Account Management team members were found under this super admin.";
     }
 
     if (activeChildCount === 0) {
@@ -163,7 +213,12 @@ function buildEmptyStateMessage(role: SupportedReportRole, eligibleChildCount: n
   return null;
 }
 
-function toScopeEntry(user: DirectoryUser, activityUser?: ActivityUserSummary): ReportScopeEntry | null {
+function toScopeEntry(
+  user: DirectoryUser,
+  activityUser?: ActivityUserSummary,
+  metricsOverride?: ReportScopeEntry["metrics"],
+  hasActivityOverride?: boolean,
+): ReportScopeEntry | null {
   if (!isSupportedReportRole(user.role)) {
     return null;
   }
@@ -175,15 +230,16 @@ function toScopeEntry(user: DirectoryUser, activityUser?: ActivityUserSummary): 
     userName: user.userName,
     role: user.role,
     disabled: user.disabled,
-    hasActivity: Boolean(activityUser),
-    metrics: {
-      loginCount: metrics.loginCount,
-      projectsConfirmed: metrics.projectsConfirmed,
-      pipelineEntriesCreated: metrics.pipelineEntriesCreated,
-      estimatesSubmitted: metrics.estimatesSubmitted,
-      approvalsCompleted: metrics.approvalsCompleted,
-      reworkEvents: metrics.reworkEvents,
-    },
+    hasActivity: hasActivityOverride ?? Boolean(activityUser),
+    metrics:
+      metricsOverride ?? {
+        loginCount: metrics.loginCount,
+        projectsConfirmed: metrics.projectsConfirmed,
+        pipelineEntriesCreated: metrics.pipelineEntriesCreated,
+        estimatesSubmitted: metrics.estimatesSubmitted,
+        approvalsCompleted: metrics.approvalsCompleted,
+        reworkEvents: metrics.reworkEvents,
+      },
   };
 }
 
@@ -279,7 +335,7 @@ export async function buildApiReportResult(params: {
   const directory = flattenOrganizationTree(params.organizationTree);
   const directoryUsers = Array.from(directory.values());
   const eligibleSupportedUsers = sortUsers(
-    directoryUsers.filter((user) => isEligibleAccountManagementUser(user) && isSupportedReportRole(user.role)),
+    directoryUsers.filter((user) => isSupportedReportRole(user.role) && isEligibleReportUser(user, directoryUsers)),
   );
 
   const currentActivityByUserId = new Map(params.currentActivity.users.map((user) => [user.userId, user]));
@@ -297,12 +353,12 @@ export async function buildApiReportResult(params: {
       continue;
     }
 
-    if (!isEligibleAccountManagementUser(matchedUser)) {
+    if (isIndividualReportRole(matchedUser.role) && !isEligibleAccountManagementUser(matchedUser)) {
       skippedIneligibleActivityUserCount += 1;
       continue;
     }
 
-    if (!isSupportedReportRole(matchedUser.role)) {
+    if (!isSupportedReportRole(matchedUser.role) && matchedUser.department === ACCOUNT_MANAGEMENT_DEPARTMENT) {
       skippedUnsupportedRoleUserCount += 1;
     }
   }
@@ -315,7 +371,7 @@ export async function buildApiReportResult(params: {
       continue;
     }
 
-    if (user.role === "team_member") {
+    if (isIndividualReportRole(user.role)) {
       const currentActivityUser = currentActivityByUserId.get(user.userId);
 
       if (!currentActivityUser) {
@@ -325,7 +381,7 @@ export async function buildApiReportResult(params: {
       const priorActivityUser = priorActivityByUserId.get(user.userId);
       const report = await buildUserReport({
         user,
-        reportRole: "team_member",
+        reportRole: user.role,
         currentActivityUsers: [currentActivityUser],
         priorActivityUsers: priorActivityUser ? [priorActivityUser] : [],
         period,
@@ -338,14 +394,7 @@ export async function buildApiReportResult(params: {
     }
 
     if (user.role === "business_owner") {
-      const eligibleChildren = sortUsers(
-        directoryUsers.filter(
-          (child) =>
-            child.managerUserId === user.userId &&
-            child.role === "team_member" &&
-            isEligibleAccountManagementUser(child),
-        ),
-      );
+      const eligibleChildren = getEligibleAccountManagementChildren(directoryUsers, user.userId);
       const activeChildren = eligibleChildren.filter((child) => currentActivityByUserId.has(child.userId));
       const scopeSummary: ReportScopeSummary = {
         role: "business_owner",
@@ -378,15 +427,10 @@ export async function buildApiReportResult(params: {
       continue;
     }
 
-    const eligibleChildren = sortUsers(
-      directoryUsers.filter(
-        (child) =>
-          child.managerUserId === user.userId &&
-          child.role === "business_owner" &&
-          isEligibleAccountManagementUser(child),
-      ),
+    const eligibleChildren = getEligibleBusinessOwnerChildren(directoryUsers, user.userId);
+    const activeChildren = eligibleChildren.filter((child) =>
+      getEligibleAccountManagementChildren(directoryUsers, child.userId).some((teamMember) => currentActivityByUserId.has(teamMember.userId)),
     );
-    const activeChildren = eligibleChildren.filter((child) => currentActivityByUserId.has(child.userId));
     const scopeSummary: ReportScopeSummary = {
       role: "super_admin",
       eligibleChildCount: eligibleChildren.length,
@@ -394,17 +438,41 @@ export async function buildApiReportResult(params: {
       emptyStateMessage: buildEmptyStateMessage("super_admin", eligibleChildren.length, activeChildren.length),
     };
     const scopeEntries = eligibleChildren
-      .map((child) => toScopeEntry(child, currentActivityByUserId.get(child.userId)))
+      .map((child) => {
+        const childTeamMembers = getEligibleAccountManagementChildren(directoryUsers, child.userId);
+        const currentChildActivityUsers = childTeamMembers
+          .map((teamMember) => currentActivityByUserId.get(teamMember.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser));
+        const childMetrics = sumMetrics(currentChildActivityUsers);
+
+        return toScopeEntry(
+          child,
+          undefined,
+          {
+            loginCount: childMetrics.loginCount,
+            projectsConfirmed: childMetrics.projectsConfirmed,
+            pipelineEntriesCreated: childMetrics.pipelineEntriesCreated,
+            estimatesSubmitted: childMetrics.estimatesSubmitted,
+            approvalsCompleted: childMetrics.approvalsCompleted,
+            reworkEvents: childMetrics.reworkEvents,
+          },
+          currentChildActivityUsers.length > 0,
+        );
+      })
       .filter((entry): entry is ReportScopeEntry => entry !== null);
     const report = await buildUserReport({
       user,
       reportRole: "super_admin",
-      currentActivityUsers: activeChildren
-        .map((child) => currentActivityByUserId.get(child.userId))
-        .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
-      priorActivityUsers: eligibleChildren
-        .map((child) => priorActivityByUserId.get(child.userId))
-        .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      currentActivityUsers: eligibleChildren.flatMap((child) =>
+        getEligibleAccountManagementChildren(directoryUsers, child.userId)
+          .map((teamMember) => currentActivityByUserId.get(teamMember.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      ),
+      priorActivityUsers: eligibleChildren.flatMap((child) =>
+        getEligibleAccountManagementChildren(directoryUsers, child.userId)
+          .map((teamMember) => priorActivityByUserId.get(teamMember.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      ),
       period,
       scopeSummary,
       scopeEntries,
@@ -437,7 +505,7 @@ export async function buildApiReportResult(params: {
     warnings.push({
       level: "info",
       code: "ineligible_activity_users_skipped",
-      message: `${skippedIneligibleActivityUserCount} activity users were skipped because their department was not Account Management.`,
+      message: `${skippedIneligibleActivityUserCount} Account Management-scope user activity records were skipped because their department was not Account Management.`,
     });
   }
 
@@ -477,6 +545,10 @@ export async function buildApiReportResult(params: {
       super_admin: 0,
       business_owner: 1,
       team_member: 2,
+      project_lead: 2,
+      freelancer: 2,
+      contributor: 2,
+      department_owner: 2,
     };
 
     return roleWeight[left.role ?? "team_member"] - roleWeight[right.role ?? "team_member"] || left.userName.localeCompare(right.userName);

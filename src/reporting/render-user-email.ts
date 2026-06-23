@@ -28,6 +28,16 @@ function humanizeTeam(department: string | null) {
   return department ?? "N/A";
 }
 
+function isIndividualUserReportRole(role: NormalizedUserReport["role"]) {
+  return (
+    role === "team_member" ||
+    role === "project_lead" ||
+    role === "freelancer" ||
+    role === "contributor" ||
+    role === "department_owner"
+  );
+}
+
 function formatWeekLabel(startDate: string) {
   const parsed = new Date(startDate);
 
@@ -183,13 +193,13 @@ function buildManagerWhatStandsOut(report: Omit<NormalizedUserReport, "html" | "
   }
 
   if (report.scopeSummary?.emptyStateMessage) {
-    return `${report.scopeSummary.emptyStateMessage} This business-owner preview is being kept as an empty-state shell until team-member activity appears in the selected period.`;
+      return `${report.scopeSummary.emptyStateMessage} This business-owner preview is being kept as an empty-state shell until Account Management user activity appears in the selected period.`;
   }
 
   if (report.scopeSummary) {
     return `Temporary sample insight: ${formatNumber(report.scopeSummary.activeChildCount)} of ${formatNumber(
       report.scopeSummary.eligibleChildCount,
-    )} eligible Account Management team member${
+    )} eligible Account Management user${
       report.scopeSummary.eligibleChildCount === 1 ? "" : "s"
     } showed activity in this period. Detailed coaching logic will be configured later.`;
   }
@@ -204,7 +214,7 @@ function buildManagerActions(report: Omit<NormalizedUserReport, "html" | "templa
 
   if (report.scopeSummary?.emptyStateMessage) {
     return [
-      "No eligible active team members were found for this period. Keep this report as an empty-state preview until team activity is available.",
+      "No eligible active Account Management users were found for this period. Keep this report as an empty-state preview until team activity is available.",
       "Use the selected date range to confirm whether activity is genuinely absent or simply outside the current reporting window.",
       "This placeholder recommendation will later be replaced with grounded coaching text once AI generation is enabled.",
     ];
@@ -251,7 +261,7 @@ function buildLeaderCoachingItems(report: Omit<NormalizedUserReport, "html" | "t
 
   if (report.scopeSummary?.emptyStateMessage) {
     return [
-      "No eligible business-owner activity was found in the selected period. This leader preview remains in empty-state mode for now.",
+      "No eligible business-owner rollup activity was found in the selected period. This leader preview remains in empty-state mode for now.",
       "Keep the selected date range under review before drawing conclusions. Activity may exist outside the current window.",
       "This placeholder coaching area will later use grounded AI text once hierarchy and scoring rules are fully configured.",
     ];
@@ -660,10 +670,10 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
             label: "Active users",
             sub:
               eligibleChildCount === 0
-                ? "no eligible Account Management team members found"
+                ? "no eligible Account Management users found"
                 : activeChildCount === 0
-                  ? "no eligible team-member activity in this period"
-                  : "eligible team-member activity in this period",
+                  ? "no eligible Account Management user activity in this period"
+                  : "eligible Account Management user activity in this period",
             color: colors.orangeDeep,
           },
           {
@@ -783,7 +793,7 @@ function renderFallbackHtml(report: NormalizedUserReport) {
 }
 
 export async function renderUserEmailHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
-  if (report.role === "team_member") {
+  if (isIndividualUserReportRole(report.role)) {
     return {
       html: renderTeamMemberHtml(report),
       templateMode: "file-template" as const,

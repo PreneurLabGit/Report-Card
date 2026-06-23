@@ -40,11 +40,12 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>Eligibility rules</h2>
             <ul className={styles.list}>
-              <li>Only users whose own department is exactly `Account Management` are eligible.</li>
-              <li>Only these roles are enabled right now: `team_member`, `business_owner`, `super_admin`.</li>
-              <li>`team_member` reports are generated only when that user has activity in the selected period.</li>
-              <li>`business_owner` reports are built from direct eligible team-member activity and can render as empty-state reports when no child activity exists.</li>
-              <li>`super_admin` reports are built from direct eligible business-owner personal activity and can render as empty-state reports when no child activity exists.</li>
+              <li>`team_member` users are eligible only when their own department is exactly `Account Management`.</li>
+              <li>`business_owner` and `super_admin` users can belong to any department, but they are included when they belong to `Account Management` or sit above eligible Account Management users in the hierarchy.</li>
+              <li>Individual user reports are enabled for `team_member`, `project_lead`, `freelancer`, `contributor`, and `department_owner` when they belong to `Account Management`.</li>
+              <li>Individual user reports are generated only when that user has activity in the selected period.</li>
+              <li>`business_owner` reports are built from direct eligible Account Management user activity and can render as empty-state reports when no child activity exists.</li>
+              <li>`super_admin` reports are built from direct eligible business-owner rollups, using only eligible child Account Management user activity, and can render as empty-state reports when no child activity exists.</li>
             </ul>
           </article>
 

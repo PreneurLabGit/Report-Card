@@ -42,7 +42,15 @@ export const reportGenerationRequestSchema = z
     message: "endDate must be on or after startDate.",
   });
 
-const supportedReportRoleSchema = z.enum(["team_member", "business_owner", "super_admin"]);
+const supportedReportRoleSchema = z.enum([
+  "team_member",
+  "project_lead",
+  "freelancer",
+  "contributor",
+  "department_owner",
+  "business_owner",
+  "super_admin",
+]);
 
 const reportPeriodSchema = z.object({
   startDate: z.string().date(),

@@ -1,5 +1,7 @@
 import type { DirectoryUser, OrganizationTreeResponse } from "@/lib/domain";
 
+const ACCOUNT_MANAGEMENT_DEPARTMENT = "Account Management";
+
 export function flattenOrganizationTree(response: OrganizationTreeResponse) {
   const directory = new Map<string, DirectoryUser>();
 
@@ -49,7 +51,43 @@ export function flattenOrganizationTree(response: OrganizationTreeResponse) {
 }
 
 export function getAccountManagementDirectory(response: OrganizationTreeResponse) {
-  return Array.from(flattenOrganizationTree(response).values())
-    .filter((user) => user.department === "Account Management")
+  const users = Array.from(flattenOrganizationTree(response).values());
+  const eligibleTeamMembers = users.filter(
+    (user) =>
+      ["team_member", "project_lead", "freelancer", "contributor", "department_owner"].includes(user.role ?? "") &&
+      user.department === ACCOUNT_MANAGEMENT_DEPARTMENT,
+  );
+  const eligibleBusinessOwnerIds = new Set(
+    eligibleTeamMembers.map((user) => user.managerUserId).filter((value): value is string => Boolean(value)),
+  );
+  const eligibleSuperAdminIds = new Set(
+    users
+      .filter(
+        (user) =>
+          user.role === "business_owner" &&
+          (user.department === ACCOUNT_MANAGEMENT_DEPARTMENT || eligibleBusinessOwnerIds.has(user.userId)),
+      )
+      .map((user) => user.managerUserId)
+      .filter((value): value is string => Boolean(value)),
+  );
+
+  return users
+    .filter((user) => {
+      if (
+        ["team_member", "project_lead", "freelancer", "contributor", "department_owner"].includes(user.role ?? "")
+      ) {
+        return user.department === ACCOUNT_MANAGEMENT_DEPARTMENT;
+      }
+
+      if (user.role === "business_owner") {
+        return user.department === ACCOUNT_MANAGEMENT_DEPARTMENT || eligibleBusinessOwnerIds.has(user.userId);
+      }
+
+      if (user.role === "super_admin") {
+        return user.department === ACCOUNT_MANAGEMENT_DEPARTMENT || eligibleSuperAdminIds.has(user.userId);
+      }
+
+      return false;
+    })
     .sort((left, right) => left.userName.localeCompare(right.userName));
 }

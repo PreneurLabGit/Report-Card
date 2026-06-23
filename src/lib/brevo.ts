@@ -75,7 +75,13 @@ export function getEmailDeliveryConfigSummary(): EmailDeliveryConfigSummary {
 }
 
 function buildEmailSubject(report: NormalizedUserReport) {
-  if (report.role === "team_member") {
+  if (
+    report.role === "team_member" ||
+    report.role === "project_lead" ||
+    report.role === "freelancer" ||
+    report.role === "contributor" ||
+    report.role === "department_owner"
+  ) {
     return "Your Salt Hub adoption brief";
   }
 

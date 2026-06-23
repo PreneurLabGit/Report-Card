@@ -47,7 +47,9 @@ async function getAccountManagementPageData() {
     totalMembers: rows.length,
     superAdmins: rows.filter((row) => row.role === "Super Admin").length,
     businessOwners: rows.filter((row) => row.role === "Business Owner").length,
-    individualContributors: rows.filter((row) => !["Super Admin", "Business Owner"].includes(row.role)).length,
+    accountManagementUsers: rows.filter(
+      (row) => !["Super Admin", "Business Owner"].includes(row.role),
+    ).length,
   };
 
   return { rows, summary };
@@ -64,7 +66,7 @@ export default async function AccountManagementTeamPage() {
             <div>
               <p className={styles.kicker}>Account Management Team</p>
               <h1>Live Account Management directory</h1>
-              <p className={styles.subcopy}>This page is now sourced from the SaltHub hierarchy API.</p>
+              <p className={styles.subcopy}>Eligible Account Management users are sourced from the live hierarchy, along with their reporting business owners and super admins.</p>
             </div>
             <div className={styles.actions}>
               <Link href="/good-to-know" className={styles.secondaryButton}>
@@ -78,7 +80,7 @@ export default async function AccountManagementTeamPage() {
 
           <section className={styles.summaryGrid}>
             <article className={styles.summaryCard}>
-              <span>Total AM users</span>
+              <span>Directory users</span>
               <strong>{summary.totalMembers}</strong>
             </article>
             <article className={styles.summaryCard}>
@@ -90,8 +92,8 @@ export default async function AccountManagementTeamPage() {
               <strong>{summary.businessOwners}</strong>
             </article>
             <article className={styles.summaryCard}>
-              <span>Other AM roles</span>
-              <strong>{summary.individualContributors}</strong>
+              <span>AM users</span>
+              <strong>{summary.accountManagementUsers}</strong>
             </article>
           </section>
 

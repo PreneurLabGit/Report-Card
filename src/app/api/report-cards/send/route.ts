@@ -41,7 +41,11 @@ export async function POST(request: Request) {
           intendedRecipient: report.recipientEmail,
           actualRecipient: config.overrideRecipient ?? report.recipientEmail ?? "Missing",
           subject:
-            report.role === "team_member"
+            report.role === "team_member" ||
+            report.role === "project_lead" ||
+            report.role === "freelancer" ||
+            report.role === "contributor" ||
+            report.role === "department_owner"
               ? "Your Salt Hub adoption brief"
               : report.role === "business_owner"
                 ? "Your Salt Hub team adoption brief"
