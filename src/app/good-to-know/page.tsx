@@ -62,7 +62,7 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>Current limitations</h2>
             <ul className={styles.list}>
-              <li>Email sending is not configured yet.</li>
+              <li>Email sending works only when Brevo and sender environment variables are configured.</li>
               <li>AI-generated narrative text runs only when `OpenAI_API_Key` is configured.</li>
               <li>The official scoring formula is not implemented yet.</li>
               <li>Score, prior score, and delta remain unavailable until that formula exists.</li>
@@ -88,6 +88,7 @@ export default function GoodToKnowPage() {
               <li>User activity comes from `Users_Activity_API_Key`.</li>
               <li>Both requests use `API_Secret_Key` as the bearer token.</li>
               <li>Optional narrative generation uses `OpenAI_API_Key` server-side.</li>
+              <li>Transactional sending uses Brevo with `Brevo_API_Key`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME`, `REPORT_EMAIL_MODE`, and `REPORT_EMAIL_TEST_OVERRIDE`.</li>
               <li>The current release no longer exposes manual upload mode in the product UI.</li>
             </ul>
           </article>

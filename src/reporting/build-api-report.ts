@@ -11,6 +11,7 @@ import type {
   SupportedReportRole,
   ValidationMessage,
 } from "@/lib/domain";
+import { getEmailDeliveryConfigSummary } from "@/lib/brevo";
 import { flattenOrganizationTree } from "@/lib/organization-tree";
 import { buildReportPeriod, calculatePriorPeriod } from "@/lib/report-period";
 import { generateAiNarrativeContent } from "@/reporting/generate-ai-content";
@@ -478,6 +479,7 @@ export async function buildApiReportResult(params: {
       skippedUnsupportedRoleUserCount,
       emptyStateReportCount,
     },
+    emailDelivery: getEmailDeliveryConfigSummary(),
     reports,
   } satisfies ApiReportResult;
 }

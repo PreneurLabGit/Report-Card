@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import type { ApiReportResult, NormalizedUserReport } from "@/lib/domain";
+import type { ApiReportResult, EmailSendResponse, NormalizedUserReport } from "@/lib/domain";
 import styles from "@/ui/salthub-app.module.css";
 
 type ToastTone = "success" | "error" | "warning" | "info";
@@ -13,6 +13,13 @@ interface ToastItem {
   title: string;
   message: string;
   tone: ToastTone;
+}
+
+type SendState = "idle" | "sending" | "sent" | "failed" | "skipped";
+
+interface SendStateEntry {
+  state: SendState;
+  detail?: string;
 }
 
 function GenerationNotes({ result }: { result: ApiReportResult }) {
@@ -197,7 +204,9 @@ export function SalthubApp() {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [sendStates, setSendStates] = useState<Record<string, SendStateEntry>>({});
   const [isPending, startTransition] = useTransition();
+  const [isSendingAll, startSendAllTransition] = useTransition();
   const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const selectedApiReport = useMemo(
@@ -273,6 +282,7 @@ export function SalthubApp() {
         }
 
         setApiResult(payload as ApiReportResult);
+        setSendStates({});
         const firstReport = (payload as ApiReportResult).reports[0];
         setSelectedReportId(firstReport?.userId ?? null);
 
@@ -301,6 +311,98 @@ export function SalthubApp() {
         });
       }
     });
+  }
+
+  async function postSendRequest(reports: NormalizedUserReport[]) {
+    const response = await fetch("/api/report-cards/send", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ reports }),
+    });
+
+    const payload = (await response.json()) as EmailSendResponse | { error?: string };
+
+    if (!response.ok) {
+      throw new Error("error" in payload && payload.error ? payload.error : "Email send failed.");
+    }
+
+    return payload as EmailSendResponse;
+  }
+
+  async function handleSendReports(reports: NormalizedUserReport[]) {
+    if (reports.length === 0) {
+      return;
+    }
+
+    setSendStates((current) => {
+      const next = { ...current };
+
+      for (const report of reports) {
+        next[report.userId] = {
+          state: "sending",
+        };
+      }
+
+      return next;
+    });
+
+    try {
+      const payload = await postSendRequest(reports);
+
+      setSendStates((current) => {
+        const next = { ...current };
+
+        for (const result of payload.results) {
+          next[result.reportId] = {
+            state:
+              result.status === "sent"
+                ? "sent"
+                : result.status === "failed"
+                  ? "failed"
+                  : result.status === "skipped"
+                    ? "skipped"
+                    : "idle",
+            detail: result.errorMessage ?? result.actualRecipient,
+          };
+        }
+
+        return next;
+      });
+
+      const destination =
+        payload.mode === "test" && payload.overrideRecipient
+          ? ` All mail was redirected to ${payload.overrideRecipient}.`
+          : "";
+
+      pushToast({
+        title: "Email send completed",
+        message: `${payload.sentCount} sent, ${payload.skippedCount} skipped, ${payload.failedCount} failed.${destination}`,
+        tone: payload.failedCount > 0 ? "warning" : "success",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected email send failure.";
+
+      setSendStates((current) => {
+        const next = { ...current };
+
+        for (const report of reports) {
+          next[report.userId] = {
+            state: "failed",
+            detail: message,
+          };
+        }
+
+        return next;
+      });
+
+      pushToast({
+        title: "Email send failed",
+        message,
+        tone: "error",
+      });
+    }
   }
 
   return (
@@ -373,11 +475,48 @@ export function SalthubApp() {
               <div>
                 <h2>Generated reports</h2>
               </div>
-              <span className={styles.cardBadge}>Users Preview Queue</span>
+              <div className={styles.headerActions}>
+                {apiResult?.emailDelivery ? (
+                  <span className={`${styles.cardBadge} ${apiResult.emailDelivery.mode === "test" ? styles.testBadge : styles.liveBadge}`}>
+                    {apiResult.emailDelivery.mode === "test"
+                      ? `Test send${apiResult.emailDelivery.overrideRecipient ? ` -> ${apiResult.emailDelivery.overrideRecipient}` : ""}`
+                      : "Live send enabled"}
+                  </span>
+                ) : null}
+                <span className={styles.cardBadge}>Users Preview Queue</span>
+              </div>
             </div>
 
             {apiResult ? (
               <>
+                <div className={styles.actionRow}>
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={
+                      isSendingAll ||
+                      !apiResult.emailDelivery.configured ||
+                      apiResult.reports.filter((report) => report.previewStatus === "ready").length === 0
+                    }
+                    onClick={() =>
+                      startSendAllTransition(async () => {
+                        await handleSendReports(apiResult.reports.filter((report) => report.previewStatus === "ready"));
+                      })
+                    }
+                  >
+                    {isSendingAll ? "Sending..." : "Send all ready"}
+                  </button>
+                  {apiResult.emailDelivery.configured ? (
+                    <p className={styles.helperText}>
+                      {apiResult.emailDelivery.mode === "test" && apiResult.emailDelivery.overrideRecipient
+                        ? `Testing mode is active. Every email will go to ${apiResult.emailDelivery.overrideRecipient}.`
+                        : "Live sending is enabled for actual recipients."}
+                    </p>
+                  ) : (
+                    <p className={styles.helperText}>Email sending is not configured yet.</p>
+                  )}
+                </div>
+
                 <div className={styles.summaryGrid}>
                   <div className={styles.summaryTile}>
                     <span>Activity users</span>
@@ -414,6 +553,7 @@ export function SalthubApp() {
                         <th>Delta</th>
                         <th>Missing</th>
                         <th>Status</th>
+                        <th>Send</th>
                         <th>Preview</th>
                       </tr>
                     </thead>
@@ -434,6 +574,25 @@ export function SalthubApp() {
                             <span className={`${styles.reportStatusPill} ${styles[`report${report.previewStatus}`]}`}>
                               {report.previewStatus}
                             </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className={styles.inlineButton}
+                              disabled={
+                                !apiResult.emailDelivery.configured ||
+                                report.previewStatus !== "ready" ||
+                                sendStates[report.userId]?.state === "sending"
+                              }
+                              onClick={() => {
+                                void handleSendReports([report]);
+                              }}
+                            >
+                              {sendStates[report.userId]?.state === "sending" ? "Sending..." : "Send"}
+                            </button>
+                            {sendStates[report.userId] ? (
+                              <div className={styles.sendStateText}>{sendStates[report.userId]?.state}</div>
+                            ) : null}
                           </td>
                           <td>
                             <button

@@ -17,6 +17,11 @@ The app reads these server-side environment variables:
 - `Users_Activity_API_Key`
 - `API_Secret_Key`
 - `OpenAI_API_Key`
+- `Brevo_API_Key`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
+- `REPORT_EMAIL_MODE`
+- `REPORT_EMAIL_TEST_OVERRIDE`
 
 The main page:
 
@@ -34,10 +39,11 @@ The main page:
 - `super_admin`: direct eligible `business_owner` personal-activity rollup, with empty-state reports when no child activity exists
 - surfaces missing fields instead of fabricating unavailable metrics
 - optionally generates role-specific narrative text through the OpenAI Responses API using `gpt-5-mini`
+- supports Brevo-based sending for one report or all ready reports
+- supports safe test-mode email override so all outgoing mail can be redirected to a single inbox
 
 Current API-first limitations:
 
-- no SendGrid sending yet
 - no official score formula yet, so score/prior-score/delta remain unavailable
 - no database or historical persistence
 - friction-note AI sections still use placeholders until that source is wired
@@ -52,14 +58,17 @@ The main page now provides:
 - exact HTML preview for a selected user
 - missing-field warnings
 - AI-written narrative sections when `OpenAI_API_Key` is configured
+- Brevo-backed `Send` and `Send all ready` actions
 
 ## Architecture
 
 The code stays modular even though the UI is simple:
 
 - `src/app/api/report-cards/route.ts`: server-owned report generation endpoint
+- `src/app/api/report-cards/send/route.ts`: server-owned email sending endpoint
 - `src/lib/salthub-api.ts`: SaltHub API client
 - `src/lib/openai.ts`: server-only OpenAI client
+- `src/lib/brevo.ts`: server-only Brevo email client
 - `src/schemas/`: Zod validation contracts
 - `src/reporting/`: API report builder, AI narrative generation, and preview rendering
 - `src/ui/`: API-first report generation and preview experience
@@ -89,3 +98,5 @@ npm run build
 - Only `team_member`, `business_owner`, and `super_admin` are enabled for report generation right now.
 - The current product flow uses the SaltHub APIs only.
 - OpenAI narrative generation is optional and falls back to deterministic placeholder copy if `OpenAI_API_Key` is missing or the request fails.
+- Brevo sending is server-side only and requires a sender email.
+- When `REPORT_EMAIL_MODE=test`, all outgoing messages are redirected to `REPORT_EMAIL_TEST_OVERRIDE`.

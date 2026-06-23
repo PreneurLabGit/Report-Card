@@ -236,6 +236,14 @@ export interface ApiReportSummary {
   emptyStateReportCount: number;
 }
 
+export interface EmailDeliveryConfigSummary {
+  configured: boolean;
+  mode: "test" | "live";
+  overrideRecipient: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
+}
+
 export interface ApiReportResult {
   mode: "api";
   generatedAt: string;
@@ -243,5 +251,26 @@ export interface ApiReportResult {
   priorPeriod: ReportPeriod;
   warnings: ValidationMessage[];
   summary: ApiReportSummary;
+  emailDelivery: EmailDeliveryConfigSummary;
   reports: NormalizedUserReport[];
+}
+
+export interface EmailSendResult {
+  reportId: string;
+  reportName: string;
+  intendedRecipient: string | null;
+  actualRecipient: string;
+  subject: string;
+  messageId: string | null;
+  status: "sent" | "skipped" | "failed";
+  errorMessage: string | null;
+}
+
+export interface EmailSendResponse {
+  mode: "test" | "live";
+  overrideRecipient: string | null;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  results: EmailSendResult[];
 }

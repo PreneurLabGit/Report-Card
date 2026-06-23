@@ -42,6 +42,85 @@ export const reportGenerationRequestSchema = z
     message: "endDate must be on or after startDate.",
   });
 
+const supportedReportRoleSchema = z.enum(["team_member", "business_owner", "super_admin"]);
+
+const reportPeriodSchema = z.object({
+  startDate: z.string().date(),
+  endDate: z.string().date(),
+  displayLabel: z.string().min(1),
+});
+
+const normalizedUserReportSchema = z.object({
+  userId: z.string().min(1),
+  recipientEmail: z.string().email().nullable(),
+  userName: z.string().min(1),
+  role: supportedReportRoleSchema.nullable(),
+  department: z.string().nullable(),
+  disabled: z.boolean(),
+  reportPeriod: reportPeriodSchema,
+  metrics: z.object({
+    loginCount: z.number(),
+    pipelineEntriesCreated: z.number(),
+    estimatesCreated: z.number().nullable(),
+    estimatesSubmitted: z.number(),
+    sentForBusinessOwnerApproval: z.number(),
+    firstApprovals: z.number(),
+    approvalsCompleted: z.number(),
+    clientApprovals: z.number(),
+    projectsConfirmed: z.number(),
+    reworkEvents: z.number(),
+    activeDaysCount: z.number().nullable(),
+    lastActivityTs: z.string().nullable(),
+    score: z.number().nullable(),
+    priorPeriodScore: z.number().nullable(),
+    wowScoreDelta: z.number().nullable(),
+  }),
+  status: z.object({
+    label: z.string().nullable(),
+    color: z.enum(["green", "yellow", "red"]).nullable(),
+  }),
+  content: z.object({
+    lede: z.string(),
+    observation: z.string(),
+    whatStandsOut: z.string(),
+    worthDoingThisWeek: z.array(z.string()),
+    coachingItems: z.array(z.string()),
+  }),
+  missingFields: z.array(z.string()),
+  previewStatus: z.enum(["ready", "missing_data", "disabled"]),
+  scopeSummary: z
+    .object({
+      role: supportedReportRoleSchema,
+      eligibleChildCount: z.number(),
+      activeChildCount: z.number(),
+      emptyStateMessage: z.string().nullable(),
+    })
+    .nullable(),
+  scopeEntries: z.array(
+    z.object({
+      userId: z.string().min(1),
+      userName: z.string().min(1),
+      role: supportedReportRoleSchema,
+      disabled: z.boolean(),
+      hasActivity: z.boolean(),
+      metrics: z.object({
+        loginCount: z.number(),
+        projectsConfirmed: z.number(),
+        pipelineEntriesCreated: z.number(),
+        estimatesSubmitted: z.number(),
+        approvalsCompleted: z.number(),
+        reworkEvents: z.number(),
+      }),
+    }),
+  ),
+  html: z.string().min(1),
+  templateMode: z.enum(["file-template", "fallback-template"]),
+});
+
+export const reportSendRequestSchema = z.object({
+  reports: z.array(normalizedUserReportSchema).min(1).max(100),
+});
+
 const organizationTreeMemberSchema = z.object({
   userId: z.string().min(1),
   userName: z.string().min(1),
