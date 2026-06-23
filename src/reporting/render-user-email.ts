@@ -1,4 +1,4 @@
-import type { NormalizedUserReport } from "@/lib/domain";
+import type { NormalizedUserReport, ReportScopeEntry } from "@/lib/domain";
 import { formatDate, formatNumber } from "@/lib/format";
 import {
   BUSINESS_OWNER_TEMPLATE,
@@ -110,6 +110,10 @@ function buildLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) 
 }
 
 function buildObservation(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.scopeSummary?.emptyStateMessage) {
+    return report.scopeSummary.emptyStateMessage;
+  }
+
   if (report.content.observation.trim().length > 0) {
     return report.content.observation;
   }
@@ -122,6 +126,10 @@ function buildObservation(report: Omit<NormalizedUserReport, "html" | "templateM
 }
 
 function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.scopeSummary?.emptyStateMessage) {
+    return report.scopeSummary.emptyStateMessage;
+  }
+
   return `This preview shows ${formatNumber(report.metrics.pipelineEntriesCreated)} pipeline entr${
     report.metrics.pipelineEntriesCreated === 1 ? "y" : "ies"
   }, ${formatNumber(report.metrics.estimatesSubmitted)} estimate${
@@ -133,11 +141,31 @@ function buildManagerLede(report: Omit<NormalizedUserReport, "html" | "templateM
   }. Team-level scoring and broader adoption rollups are still being configured.`;
 }
 
-function buildManagerWhatStandsOut() {
+function buildManagerWhatStandsOut(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.scopeSummary?.emptyStateMessage) {
+    return `${report.scopeSummary.emptyStateMessage} This business-owner preview is being kept as an empty-state shell until team-member activity appears in the selected period.`;
+  }
+
+  if (report.scopeSummary) {
+    return `Temporary sample insight: ${formatNumber(report.scopeSummary.activeChildCount)} of ${formatNumber(
+      report.scopeSummary.eligibleChildCount,
+    )} eligible Account Management team member${
+      report.scopeSummary.eligibleChildCount === 1 ? "" : "s"
+    } showed activity in this period. Detailed coaching logic will be configured later.`;
+  }
+
   return "Temporary sample insight: activity is visible in the current SaltHub export, but the full business-owner rollup logic is not configured yet. Use this section as a content placeholder while we wire the OpenAI-generated diagnostic summary on top of the real aggregated metrics.";
 }
 
-function buildManagerActions() {
+function buildManagerActions(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.scopeSummary?.emptyStateMessage) {
+    return [
+      "No eligible active team members were found for this period. Keep this report as an empty-state preview until team activity is available.",
+      "Use the selected date range to confirm whether activity is genuinely absent or simply outside the current reporting window.",
+      "This placeholder recommendation will later be replaced with grounded coaching text once AI generation is enabled.",
+    ];
+  }
+
   return [
     "Check for stalled drafts. Use this placeholder recommendation until the live team-level diagnostic prompts are configured.",
     "Review submission flow blockers. This sample action stands in for the future OpenAI-authored coaching text.",
@@ -153,6 +181,10 @@ function buildManagerFrictionNote() {
 }
 
 function buildLeaderLede(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  if (report.scopeSummary?.emptyStateMessage) {
+    return report.scopeSummary.emptyStateMessage;
+  }
+
   return `Temporary leader-rollup preview: the full span comparison is not configured yet, but currently visible activity shows ${formatNumber(
     report.metrics.pipelineEntriesCreated,
   )} pipeline entr${report.metrics.pipelineEntriesCreated === 1 ? "y" : "ies"}, ${formatNumber(
@@ -162,7 +194,25 @@ function buildLeaderLede(report: Omit<NormalizedUserReport, "html" | "templateMo
   )} rework event${report.metrics.reworkEvents === 1 ? "" : "s"}.`;
 }
 
-function buildLeaderCoachingItems() {
+function buildLeaderCoachingItems(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  const activeEntries = report.scopeEntries.filter((entry) => entry.hasActivity);
+
+  if (report.scopeSummary?.emptyStateMessage) {
+    return [
+      "No eligible business-owner activity was found in the selected period. This leader preview remains in empty-state mode for now.",
+      "Keep the selected date range under review before drawing conclusions. Activity may exist outside the current window.",
+      "This placeholder coaching area will later use grounded AI text once hierarchy and scoring rules are fully configured.",
+    ];
+  }
+
+  if (activeEntries.length > 0) {
+    return [
+      `${activeEntries[0]?.userName ?? "This business owner"} is the clearest activity signal in the current window. Use this placeholder note until the leader-diagnostic layer is configured.`,
+      `${activeEntries[1]?.userName ?? "Another business owner"} can be reviewed next for visible submission and approval patterns.`,
+      `${activeEntries[2]?.userName ?? "The remaining business owners"} are retained here as placeholders until the comparative coaching logic is configured.`,
+    ];
+  }
+
   return [
     "Temporary sample coaching note: prioritize the manager with the clearest drop in visible activity once real span-level scoring is configured.",
     "Temporary sample coaching note: review rework patterns across the span to identify whether the estimate flow is unclear or being rushed.",
@@ -177,12 +227,28 @@ function buildLeaderFrictionTheme() {
   };
 }
 
-function buildLeaderManagerRows() {
-  return [
-    { name: "Manager A", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" },
-    { name: "Manager B", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" },
-    { name: "Manager C", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" },
-  ];
+function buildLeaderManagerRows(entries: ReportScopeEntry[]) {
+  const activeFirst = [...entries].sort((left, right) => {
+    if (left.hasActivity !== right.hasActivity) {
+      return left.hasActivity ? -1 : 1;
+    }
+
+    return left.userName.localeCompare(right.userName);
+  });
+
+  const rows = activeFirst.slice(0, 3).map((entry) => ({
+    name: entry.userName,
+    status: "N/A",
+    score: "N/A",
+    active: entry.hasActivity ? formatNumber(entry.metrics.loginCount) : "0",
+    confirmed: entry.hasActivity ? formatNumber(entry.metrics.projectsConfirmed) : "0",
+  }));
+
+  while (rows.length < 3) {
+    rows.push({ name: "N/A", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" });
+  }
+
+  return rows;
 }
 
 function renderFallbackHtml(report: NormalizedUserReport) {
@@ -297,8 +363,10 @@ function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templ
 
 function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   const statusVariant = getStatusVariant(report);
-  const actions = buildManagerActions();
+  const actions = buildManagerActions(report);
   const friction = buildManagerFrictionNote();
+  const activeChildCount = report.scopeSummary?.activeChildCount ?? 0;
+  const eligibleChildCount = report.scopeSummary?.eligibleChildCount ?? 0;
 
   const fields = {
     embedded_css: buildEmbeddedCss(),
@@ -308,10 +376,15 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
     status_text: statusVariant.statusText,
     user_name: report.userName,
     team_title: humanizeTeam(report.department),
-    manager_subline: "Expected users: N/A - 4-week active rate: N/A",
+    manager_subline: `Eligible team members: ${formatNumber(eligibleChildCount)} - Active this period: ${formatNumber(activeChildCount)}`,
     lede: buildManagerLede(report),
-    active_users_value: "N/A",
-    active_users_sub: "team active-user rollup not configured yet",
+    active_users_value: `${formatNumber(activeChildCount)} of ${formatNumber(eligibleChildCount)}`,
+    active_users_sub:
+      eligibleChildCount === 0
+        ? "no eligible Account Management team members found"
+        : activeChildCount === 0
+          ? "no eligible team-member activity in this period"
+          : "eligible team-member activity in this period",
     pipeline_entries_created: formatNumber(report.metrics.pipelineEntriesCreated),
     pipeline_entries_sub: "based on currently available SaltHub activity",
     estimates_submitted_value: "N/A",
@@ -320,7 +393,7 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
     projects_confirmed: formatNumber(report.metrics.projectsConfirmed),
     rework_events: formatNumber(report.metrics.reworkEvents),
     rework_sub: report.metrics.reworkEvents === 0 ? "no rework recorded" : "rework activity recorded",
-    what_stands_out: buildManagerWhatStandsOut(),
+    what_stands_out: buildManagerWhatStandsOut(report),
     worth_doing_1: actions[0] ?? "",
     worth_doing_2: actions[1] ?? "",
     worth_doing_3: actions[2] ?? "",
@@ -333,9 +406,11 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
 
 function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   const statusVariant = getStatusVariant(report);
-  const coaching = buildLeaderCoachingItems();
+  const coaching = buildLeaderCoachingItems(report);
   const friction = buildLeaderFrictionTheme();
-  const rows = buildLeaderManagerRows();
+  const rows = buildLeaderManagerRows(report.scopeEntries);
+  const activeChildCount = report.scopeSummary?.activeChildCount ?? 0;
+  const eligibleChildCount = report.scopeSummary?.eligibleChildCount ?? 0;
 
   const fields = {
     embedded_css: buildEmbeddedCss(),
@@ -345,7 +420,7 @@ function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templ
     status_text: statusVariant.statusText,
     user_name: report.userName,
     leader_title: `${humanizeTeam(report.department)} Leadership`,
-    leader_subline: "Managers: N/A - Expected users: N/A - Leader score: N/A",
+    leader_subline: `Business owners: ${formatNumber(eligibleChildCount)} - Active this period: ${formatNumber(activeChildCount)} - Leader score: N/A`,
     lede: buildLeaderLede(report),
     manager_1_name: rows[0]?.name ?? "N/A",
     manager_1_status: rows[0]?.status ?? "N/A",

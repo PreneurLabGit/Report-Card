@@ -23,21 +23,38 @@ const organizationTree: OrganizationTreeResponse = {
           teamMembers: [
             {
               userId: "tm-1",
-              userName: "Project Lead",
+              userName: "Team Member",
               email: "tm@example.com",
-              role: "project_lead",
+              role: "team_member",
               department: "Account Management",
               disabled: false,
             },
             {
               userId: "tm-2",
-              userName: "Non AM",
-              email: "nonam@example.com",
+              userName: "Project Lead",
+              email: "lead@example.com",
               role: "project_lead",
+              department: "Account Management",
+              disabled: false,
+            },
+            {
+              userId: "tm-3",
+              userName: "Creative Member",
+              email: "creative@example.com",
+              role: "team_member",
               department: "Creative",
               disabled: false,
             },
           ],
+        },
+        {
+          userId: "bo-2",
+          userName: "Idle Owner",
+          email: "idle@example.com",
+          role: "business_owner",
+          department: "Account Management",
+          disabled: false,
+          teamMembers: [],
         },
       ],
     },
@@ -49,21 +66,45 @@ const currentActivity: ActivitySummaryResponse = {
   end_date: "2026-06-21",
   users: [
     {
+      userId: "sa-1",
+      userName: "Super Admin",
+      userEmail: "sa@example.com",
+      loginCount: 9,
+    },
+    {
       userId: "bo-1",
       userName: "Business Owner",
       userEmail: "bo@example.com",
       loginCount: 4,
+      projectsConfirmed: 2,
       otherActions: {
         pipeline_create: 2,
-        estimate_submit_for_approval: 3,
+      },
+    },
+    {
+      userId: "tm-1",
+      userName: "Team Member",
+      userEmail: "tm@example.com",
+      loginCount: 6,
+      projectsConfirmed: 1,
+      sentForBusinessOwnerApproval: 1,
+      otherActions: {
+        pipeline_create: 3,
+        estimate_submit_for_approval: 2,
+        estimate_approve_second: 1,
         estimate_unapprove: 1,
-        estimate_request_second_approval: 2,
       },
     },
     {
       userId: "tm-2",
-      userName: "Non AM",
-      userEmail: "nonam@example.com",
+      userName: "Project Lead",
+      userEmail: "lead@example.com",
+      loginCount: 7,
+    },
+    {
+      userId: "tm-3",
+      userName: "Creative Member",
+      userEmail: "creative@example.com",
       loginCount: 8,
     },
   ],
@@ -77,6 +118,12 @@ const priorActivity: ActivitySummaryResponse = {
       userId: "bo-1",
       userName: "Business Owner",
       userEmail: "bo@example.com",
+      loginCount: 1,
+    },
+    {
+      userId: "tm-1",
+      userName: "Team Member",
+      userEmail: "tm@example.com",
       loginCount: 2,
     },
   ],
@@ -94,7 +141,7 @@ describe("flattenOrganizationTree", () => {
 });
 
 describe("buildApiReportResult", () => {
-  it("generates reports only for exact Account Management users with activity", async () => {
+  it("generates hierarchy-scoped reports only for enabled AM roles", async () => {
     const result = await buildApiReportResult({
       startDate: "2026-06-15",
       endDate: "2026-06-21",
@@ -103,12 +150,17 @@ describe("buildApiReportResult", () => {
       priorActivity,
     });
 
-    expect(result.reports).toHaveLength(1);
-    expect(result.reports[0]?.userId).toBe("bo-1");
+    expect(result.reports.map((report) => [report.userId, report.role])).toEqual([
+      ["sa-1", "super_admin"],
+      ["bo-1", "business_owner"],
+      ["bo-2", "business_owner"],
+      ["tm-1", "team_member"],
+    ]);
     expect(result.summary.skippedIneligibleActivityUserCount).toBe(1);
+    expect(result.summary.skippedUnsupportedRoleUserCount).toBe(1);
   });
 
-  it("marks unavailable score fields and calculates rework events", async () => {
+  it("builds business owner reports from direct AM team member activity only", async () => {
     const result = await buildApiReportResult({
       startDate: "2026-06-15",
       endDate: "2026-06-21",
@@ -117,10 +169,63 @@ describe("buildApiReportResult", () => {
       priorActivity,
     });
 
-    const report = result.reports[0];
-    expect(report?.metrics.reworkEvents).toBe(3);
-    expect(report?.metrics.score).toBeNull();
-    expect(report?.missingFields).toContain("score");
-    expect(report?.previewStatus).toBe("ready");
+    const ownerReport = result.reports.find((report) => report.userId === "bo-1");
+    expect(ownerReport?.scopeSummary).toMatchObject({
+      role: "business_owner",
+      eligibleChildCount: 1,
+      activeChildCount: 1,
+      emptyStateMessage: null,
+    });
+    expect(ownerReport?.metrics.loginCount).toBe(6);
+    expect(ownerReport?.metrics.pipelineEntriesCreated).toBe(3);
+    expect(ownerReport?.metrics.projectsConfirmed).toBe(1);
+    expect(ownerReport?.metrics.reworkEvents).toBe(1);
+    expect(ownerReport?.scopeEntries.map((entry) => entry.userId)).toEqual(["tm-1"]);
+  });
+
+  it("builds super admin reports from direct business owner personal activity", async () => {
+    const result = await buildApiReportResult({
+      startDate: "2026-06-15",
+      endDate: "2026-06-21",
+      organizationTree,
+      currentActivity,
+      priorActivity,
+    });
+
+    const superAdminReport = result.reports.find((report) => report.userId === "sa-1");
+    expect(superAdminReport?.scopeSummary).toMatchObject({
+      role: "super_admin",
+      eligibleChildCount: 2,
+      activeChildCount: 1,
+      emptyStateMessage: null,
+    });
+    expect(superAdminReport?.metrics.loginCount).toBe(4);
+    expect(superAdminReport?.metrics.pipelineEntriesCreated).toBe(2);
+    expect(superAdminReport?.scopeEntries.map((entry) => [entry.userId, entry.hasActivity])).toEqual([
+      ["bo-1", true],
+      ["bo-2", false],
+    ]);
+  });
+
+  it("generates empty-state parent reports when eligible child activity is absent", async () => {
+    const result = await buildApiReportResult({
+      startDate: "2026-06-15",
+      endDate: "2026-06-21",
+      organizationTree,
+      currentActivity: {
+        ...currentActivity,
+        users: currentActivity.users.filter((user) => user.userId !== "bo-1" && user.userId !== "tm-1"),
+      },
+      priorActivity,
+    });
+
+    const ownerReport = result.reports.find((report) => report.userId === "bo-1");
+    const idleOwnerReport = result.reports.find((report) => report.userId === "bo-2");
+    const superAdminReport = result.reports.find((report) => report.userId === "sa-1");
+
+    expect(ownerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible team member activity");
+    expect(idleOwnerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management team members");
+    expect(superAdminReport?.scopeSummary?.emptyStateMessage).toContain("No eligible business owner activity");
+    expect(result.summary.emptyStateReportCount).toBe(3);
   });
 });

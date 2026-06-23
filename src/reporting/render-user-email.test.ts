@@ -42,6 +42,8 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
   },
   missingFields: ["score"],
   previewStatus: "ready",
+  scopeSummary: null,
+  scopeEntries: [],
 };
 
 describe("renderUserEmailHtml", () => {
@@ -71,13 +73,19 @@ describe("renderUserEmailHtml", () => {
         projectsConfirmed: 2,
         reworkEvents: 1,
       },
+      scopeSummary: {
+        role: "business_owner",
+        eligibleChildCount: 5,
+        activeChildCount: 3,
+        emptyStateMessage: null,
+      },
     });
 
     expect(rendered.templateMode).toBe("file-template");
     expect(rendered.html).toContain("Worth doing this week");
     expect(rendered.html).toContain("What stands out");
     expect(rendered.html).toContain("Your friction note from last week");
-    expect(rendered.html).toContain("Temporary sample");
+    expect(rendered.html).toContain("Eligible team members: 5");
   });
 
   it("renders the super admin template with sample leader sections", async () => {
@@ -92,12 +100,50 @@ describe("renderUserEmailHtml", () => {
         projectsConfirmed: 3,
         reworkEvents: 1,
       },
+      scopeSummary: {
+        role: "super_admin",
+        eligibleChildCount: 3,
+        activeChildCount: 2,
+        emptyStateMessage: null,
+      },
+      scopeEntries: [
+        {
+          userId: "bo-1",
+          userName: "Jordan Lee",
+          role: "business_owner",
+          disabled: false,
+          hasActivity: true,
+          metrics: {
+            loginCount: 8,
+            projectsConfirmed: 3,
+            pipelineEntriesCreated: 5,
+            estimatesSubmitted: 2,
+            approvalsCompleted: 1,
+            reworkEvents: 0,
+          },
+        },
+        {
+          userId: "bo-2",
+          userName: "Priya Shah",
+          role: "business_owner",
+          disabled: false,
+          hasActivity: true,
+          metrics: {
+            loginCount: 5,
+            projectsConfirmed: 2,
+            pipelineEntriesCreated: 4,
+            estimatesSubmitted: 1,
+            approvalsCompleted: 1,
+            reworkEvents: 1,
+          },
+        },
+      ],
     });
 
     expect(rendered.templateMode).toBe("file-template");
     expect(rendered.html).toContain("Where to spend coaching time");
     expect(rendered.html).toContain("Friction themes across your span");
-    expect(rendered.html).toContain("Manager A");
-    expect(rendered.html).toContain("Temporary sample");
+    expect(rendered.html).toContain("Jordan Lee");
+    expect(rendered.html).toContain("Business owners: 3");
   });
 });

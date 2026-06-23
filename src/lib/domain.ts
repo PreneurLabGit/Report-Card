@@ -148,6 +148,31 @@ export interface DirectoryUser {
   managerUserId: string | null;
 }
 
+export type SupportedReportRole = "team_member" | "business_owner" | "super_admin";
+
+export interface ReportScopeEntry {
+  userId: string;
+  userName: string;
+  role: SupportedReportRole;
+  disabled: boolean;
+  hasActivity: boolean;
+  metrics: {
+    loginCount: number;
+    projectsConfirmed: number;
+    pipelineEntriesCreated: number;
+    estimatesSubmitted: number;
+    approvalsCompleted: number;
+    reworkEvents: number;
+  };
+}
+
+export interface ReportScopeSummary {
+  role: SupportedReportRole;
+  eligibleChildCount: number;
+  activeChildCount: number;
+  emptyStateMessage: string | null;
+}
+
 export interface ReportPeriod {
   startDate: string;
   endDate: string;
@@ -158,7 +183,7 @@ export interface NormalizedUserReport {
   userId: string;
   recipientEmail: string | null;
   userName: string;
-  role: string | null;
+  role: SupportedReportRole | null;
   department: string | null;
   disabled: boolean;
   reportPeriod: ReportPeriod;
@@ -189,6 +214,8 @@ export interface NormalizedUserReport {
   };
   missingFields: string[];
   previewStatus: "ready" | "missing_data" | "disabled";
+  scopeSummary: ReportScopeSummary | null;
+  scopeEntries: ReportScopeEntry[];
   html: string;
   templateMode: "file-template" | "fallback-template";
 }
@@ -202,6 +229,8 @@ export interface ApiReportSummary {
   disabledReportCount: number;
   skippedIneligibleActivityUserCount: number;
   skippedUsersWithoutDirectoryMatch: number;
+  skippedUnsupportedRoleUserCount: number;
+  emptyStateReportCount: number;
 }
 
 export interface ApiReportResult {

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import type { ApiReportResult, NormalizedUserReport } from "@/lib/domain";
-import { formatDate } from "@/lib/format";
 import styles from "@/ui/salthub-app.module.css";
 
 type ToastTone = "success" | "error" | "warning" | "info";
@@ -14,6 +13,64 @@ interface ToastItem {
   title: string;
   message: string;
   tone: ToastTone;
+}
+
+function GenerationNotes({ result }: { result: ApiReportResult }) {
+  const warnings = result.warnings.filter((item) => item.level === "warning");
+  const infoItems = result.warnings.filter((item) => item.level === "info");
+
+  if (warnings.length === 0 && infoItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className={styles.notesPanel} aria-label="Generation notes">
+      <div className={styles.notesHeader}>
+        <div>
+          <h3>Generation notes</h3>
+          <p className={styles.muted}>Items that were skipped, limited, or generated in empty-state mode.</p>
+        </div>
+        <div className={styles.notesPills}>
+          {warnings.length > 0 ? <span className={styles.warningPill}>{warnings.length} warning{warnings.length === 1 ? "" : "s"}</span> : null}
+          {infoItems.length > 0 ? <span className={styles.infoPill}>{infoItems.length} info</span> : null}
+        </div>
+      </div>
+
+      <div className={styles.notesGrid}>
+        {warnings.length > 0 ? (
+          <section className={`${styles.notesGroup} ${styles.notesWarning}`}>
+            <div className={styles.notesGroupHeader}>
+              <span className={styles.notesBadge}>Warning</span>
+              <strong>Needs attention</strong>
+            </div>
+            <div className={styles.notesList}>
+              {warnings.map((warning) => (
+                <article key={warning.code} className={styles.noteItem}>
+                  <p>{warning.message}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {infoItems.length > 0 ? (
+          <section className={`${styles.notesGroup} ${styles.notesInfo}`}>
+            <div className={styles.notesGroupHeader}>
+              <span className={styles.notesBadge}>Info</span>
+              <strong>Generation summary</strong>
+            </div>
+            <div className={styles.notesList}>
+              {infoItems.map((item) => (
+                <article key={item.code} className={styles.noteItem}>
+                  <p>{item.message}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
 function ToastStack({
@@ -106,22 +163,6 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
           <strong>{report.metrics.pipelineEntriesCreated}</strong>
         </div>
       </section>
-
-      <section className={styles.previewMeta}>
-        <div>
-          <strong>Template mode</strong>
-          <span>{report.templateMode}</span>
-        </div>
-        <div>
-          <strong>Status</strong>
-          <span>{report.status.label ?? "Not available"}</span>
-        </div>
-        <div>
-          <strong>Last activity</strong>
-          <span>{report.metrics.lastActivityTs ? formatDate(report.metrics.lastActivityTs) : "Not available"}</span>
-        </div>
-      </section>
-
       <div className={styles.iframeFrame}>
         <iframe title={`${report.userName} preview`} srcDoc={report.html} className={styles.previewFrame} />
       </div>
@@ -356,16 +397,7 @@ export function SalthubApp() {
                   </div>
                 </div>
 
-                {apiResult.warnings.length > 0 ? (
-                  <div className={styles.warningStack}>
-                    {apiResult.warnings.map((warning) => (
-                      <div key={warning.code} className={`${styles.message} ${styles[warning.level]}`}>
-                        <strong>{warning.level}</strong>
-                        <span>{warning.message}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                <GenerationNotes result={apiResult} />
 
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>

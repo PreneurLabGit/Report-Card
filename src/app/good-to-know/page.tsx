@@ -22,8 +22,8 @@ export default function GoodToKnowPage() {
             <ol className={styles.numberList}>
               <li>Choose a start date and end date on the homepage.</li>
               <li>Click `Fetch and Generate` to load SaltHub data server-side.</li>
-              <li>Review generated Account Management user reports in the table.</li>
-              <li>Open the selected user’s email preview below the table.</li>
+              <li>Review generated Account Management hierarchy reports in the table.</li>
+              <li>Open the selected user&apos;s email preview below the table.</li>
             </ol>
           </article>
 
@@ -40,10 +40,11 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>Eligibility rules</h2>
             <ul className={styles.list}>
-              <li>Reports are generated only for users returned by the activity API for the selected period.</li>
-              <li>Those users must also exist in the organization tree.</li>
-              <li>For the current release, the user’s own department must be exactly `Account Management`.</li>
-              <li>Users outside that exact department are skipped from report generation.</li>
+              <li>Only users whose own department is exactly `Account Management` are eligible.</li>
+              <li>Only these roles are enabled right now: `team_member`, `business_owner`, `super_admin`.</li>
+              <li>`team_member` reports are generated only when that user has activity in the selected period.</li>
+              <li>`business_owner` reports are built from direct eligible team-member activity and can render as empty-state reports when no child activity exists.</li>
+              <li>`super_admin` reports are built from direct eligible business-owner personal activity and can render as empty-state reports when no child activity exists.</li>
             </ul>
           </article>
 
@@ -53,7 +54,7 @@ export default function GoodToKnowPage() {
               <li>Date-range based report generation</li>
               <li>Current-period activity fetch</li>
               <li>Prior equal-length period fetch for comparison readiness</li>
-              <li>Generated reports table</li>
+              <li>Role-aware generated reports table</li>
               <li>User email preview</li>
             </ul>
           </article>

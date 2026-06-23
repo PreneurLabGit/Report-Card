@@ -435,6 +435,141 @@
   margin-top: 18px;
 }
 
+.notesPanel {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+.notesHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.notesHeader h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.notesHeader p {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.notesPills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.warningPill,
+.infoPill,
+.notesBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.warningPill {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.infoPill {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.notesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.notesGroup {
+  border-radius: 18px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.notesWarning {
+  border-color: #fcd34d;
+  background: linear-gradient(180deg, #fffdf5, #ffffff);
+}
+
+.notesInfo {
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.notesGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.notesGroupHeader strong {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.notesBadge {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.notesWarning .notesBadge {
+  color: #92400e;
+}
+
+.notesInfo .notesBadge {
+  color: #1d4ed8;
+}
+
+.notesList {
+  display: grid;
+  gap: 10px;
+}
+
+.noteItem {
+  padding: 12px 13px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.notesWarning .noteItem {
+  border-color: #fde68a;
+}
+
+.notesInfo .noteItem {
+  border-color: #dbeafe;
+}
+
+.noteItem p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #475569;
+}
+
 .tableWrap {
   margin-top: 18px;
   overflow-x: auto;
