@@ -217,6 +217,8 @@ export interface NormalizedUserReport {
   };
   missingFields: string[];
   previewStatus: "ready" | "missing_data" | "disabled";
+  narrativeStatus: "generated" | "fallback" | "empty_state";
+  narrativeDetail: string | null;
   scopeSummary: ReportScopeSummary | null;
   scopeEntries: ReportScopeEntry[];
   html: string;

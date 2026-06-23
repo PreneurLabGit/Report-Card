@@ -88,6 +88,8 @@ const normalizedUserReportSchema = z.object({
   }),
   missingFields: z.array(z.string()),
   previewStatus: z.enum(["ready", "missing_data", "disabled"]),
+  narrativeStatus: z.enum(["generated", "fallback", "empty_state"]),
+  narrativeDetail: z.string().nullable(),
   scopeSummary: z
     .object({
       role: supportedReportRoleSchema,

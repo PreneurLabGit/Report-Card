@@ -76,6 +76,17 @@ function GenerationNotes({ result }: { result: ApiReportResult }) {
           </section>
         ) : null}
       </div>
+
+      {result.reports.some((report) => report.narrativeStatus !== "generated") ? (
+        <div className={styles.aiStatusBar}>
+          <strong>AI narrative status</strong>
+          <p>
+            {result.reports.filter((report) => report.narrativeStatus === "generated").length} generated,{" "}
+            {result.reports.filter((report) => report.narrativeStatus === "fallback").length} fallback,{" "}
+            {result.reports.filter((report) => report.narrativeStatus === "empty_state").length} empty-state.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -149,6 +160,15 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
         <section className={styles.noteBox}>
           <strong>Missing fields</strong>
           <p>{report.missingFields.join(", ")}</p>
+        </section>
+      ) : null}
+
+      {report.narrativeStatus !== "generated" ? (
+        <section className={styles.aiNoteBox}>
+          <strong>
+            {report.narrativeStatus === "fallback" ? "AI fallback copy in use" : "AI narrative skipped for empty-state report"}
+          </strong>
+          <p>{report.narrativeDetail ?? "The report preview is using non-AI fallback copy."}</p>
         </section>
       ) : null}
 
@@ -534,6 +554,10 @@ export function SalthubApp() {
                     <span>Ready previews</span>
                     <strong>{apiResult.summary.readyReportCount}</strong>
                   </div>
+                  <div className={styles.summaryTile}>
+                    <span>AI generated</span>
+                    <strong>{apiResult.reports.filter((report) => report.narrativeStatus === "generated").length}</strong>
+                  </div>
                 </div>
 
                 <GenerationNotes result={apiResult} />
@@ -553,6 +577,7 @@ export function SalthubApp() {
                         <th>Delta</th>
                         <th>Missing</th>
                         <th>Status</th>
+                        <th>AI copy</th>
                         <th>Send</th>
                         <th>Preview</th>
                       </tr>
@@ -573,6 +598,15 @@ export function SalthubApp() {
                           <td>
                             <span className={`${styles.reportStatusPill} ${styles[`report${report.previewStatus}`]}`}>
                               {report.previewStatus}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`${styles.reportStatusPill} ${styles[`narrative${report.narrativeStatus}`]}`}>
+                              {report.narrativeStatus === "generated"
+                                ? "AI generated"
+                                : report.narrativeStatus === "fallback"
+                                  ? "Fallback"
+                                  : "Empty-state"}
                             </span>
                           </td>
                           <td>

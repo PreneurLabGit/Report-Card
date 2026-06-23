@@ -238,19 +238,25 @@ async function buildUserReport(params: {
     },
     missingFields,
     previewStatus: buildPreviewStatus(params.user, missingFields),
+    narrativeStatus: "fallback",
+    narrativeDetail: null,
     scopeSummary: params.scopeSummary,
     scopeEntries: params.scopeEntries,
   };
 
-  const content = await generateAiNarrativeContent(reportBase);
+  const narrative = await generateAiNarrativeContent(reportBase);
   const rendered = await renderUserEmailHtml({
     ...reportBase,
-    content,
+    content: narrative.content,
+    narrativeStatus: narrative.narrativeStatus,
+    narrativeDetail: narrative.narrativeDetail,
   });
 
   return {
     ...reportBase,
-    content,
+    content: narrative.content,
+    narrativeStatus: narrative.narrativeStatus,
+    narrativeDetail: narrative.narrativeDetail,
     html: rendered.html,
     templateMode: rendered.templateMode,
   } satisfies NormalizedUserReport;
@@ -448,6 +454,21 @@ export async function buildApiReportResult(params: {
       level: "info",
       code: "empty_state_parent_reports",
       message: `${emptyStateReportCount} parent report${emptyStateReportCount === 1 ? "" : "s"} were generated in empty-state mode because no eligible child activity was found for the selected period.`,
+    });
+  }
+
+  const fallbackNarrativeReports = reports.filter((report) => report.narrativeStatus === "fallback");
+
+  if (fallbackNarrativeReports.length > 0) {
+    const quotaLimited = fallbackNarrativeReports.some((report) =>
+      report.narrativeDetail?.toLowerCase().includes("insufficient_quota"),
+    );
+    warnings.push({
+      level: "warning",
+      code: quotaLimited ? "ai_narrative_quota_limited" : "ai_narrative_fallback",
+      message: quotaLimited
+        ? `${fallbackNarrativeReports.length} report narrative${fallbackNarrativeReports.length === 1 ? "" : "s"} used fallback copy because OpenAI quota or billing is unavailable.`
+        : `${fallbackNarrativeReports.length} report narrative${fallbackNarrativeReports.length === 1 ? "" : "s"} used fallback copy because AI generation did not complete.`,
     });
   }
 

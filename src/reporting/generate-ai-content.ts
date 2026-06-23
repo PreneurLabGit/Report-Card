@@ -156,45 +156,74 @@ async function generateSuperAdminContent(report: Omit<NormalizedUserReport, "htm
 
 export async function generateAiNarrativeContent(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
   if (!isOpenAiConfigured()) {
-    return report.content;
+    return {
+      content: report.content,
+      narrativeStatus: "fallback" as const,
+      narrativeDetail: "OpenAI narrative generation is not configured. Fallback copy is being used.",
+    };
   }
 
   if (report.scopeSummary?.emptyStateMessage) {
-    return report.content;
+    return {
+      content: report.content,
+      narrativeStatus: "empty_state" as const,
+      narrativeDetail: "This report is in empty-state mode, so AI narrative generation was skipped.",
+    };
   }
 
   try {
     if (report.role === "team_member") {
       const generated = await generateTeamMemberContent(report);
       return {
-        ...report.content,
-        lede: generated.lede,
-        observation: generated.observation,
+        content: {
+          ...report.content,
+          lede: generated.lede,
+          observation: generated.observation,
+        },
+        narrativeStatus: "generated" as const,
+        narrativeDetail: null,
       };
     }
 
     if (report.role === "business_owner") {
       const generated = await generateBusinessOwnerContent(report);
       return {
-        ...report.content,
-        lede: generated.lede,
-        whatStandsOut: generated.whatStandsOut,
-        worthDoingThisWeek: generated.worthDoingThisWeek,
+        content: {
+          ...report.content,
+          lede: generated.lede,
+          whatStandsOut: generated.whatStandsOut,
+          worthDoingThisWeek: generated.worthDoingThisWeek,
+        },
+        narrativeStatus: "generated" as const,
+        narrativeDetail: null,
       };
     }
 
     if (report.role === "super_admin") {
       const generated = await generateSuperAdminContent(report);
       return {
-        ...report.content,
-        lede: generated.lede,
-        coachingItems: generated.coachingItems,
+        content: {
+          ...report.content,
+          lede: generated.lede,
+          coachingItems: generated.coachingItems,
+        },
+        narrativeStatus: "generated" as const,
+        narrativeDetail: null,
       };
     }
   } catch (error) {
     const message = error instanceof OpenAiError || error instanceof Error ? error.message : "Unknown AI generation error.";
     console.error(`OpenAI narrative generation fallback for ${report.userId}: ${message}`);
+    return {
+      content: report.content,
+      narrativeStatus: "fallback" as const,
+      narrativeDetail: `AI narrative generation failed. Fallback copy is being used. ${message}`,
+    };
   }
 
-  return report.content;
+  return {
+    content: report.content,
+    narrativeStatus: "fallback" as const,
+    narrativeDetail: "AI narrative generation did not run for this report. Fallback copy is being used.",
+  };
 }
