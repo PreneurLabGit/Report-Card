@@ -13,7 +13,6 @@ import type {
 } from "@/lib/domain";
 import { getEmailDeliveryConfigSummary } from "@/lib/brevo";
 import { flattenOrganizationTree } from "@/lib/organization-tree";
-import { buildReportPeriod, calculatePriorPeriod } from "@/lib/report-period";
 import { generateAiNarrativeContent } from "@/reporting/generate-ai-content";
 import { renderUserEmailHtml } from "@/reporting/render-user-email";
 
@@ -323,14 +322,16 @@ function sortUsers(users: DirectoryUser[]) {
 }
 
 export async function buildApiReportResult(params: {
-  startDate: string;
-  endDate: string;
+  weeklyPeriod: ReportPeriod;
+  priorWeeklyPeriod: ReportPeriod;
+  biweeklyPeriod: ReportPeriod;
+  priorBiweeklyPeriod: ReportPeriod;
   organizationTree: OrganizationTreeResponse;
-  currentActivity: ActivitySummaryResponse;
-  priorActivity: ActivitySummaryResponse;
+  weeklyActivity: ActivitySummaryResponse;
+  priorWeeklyActivity: ActivitySummaryResponse;
+  biweeklyActivity: ActivitySummaryResponse;
+  priorBiweeklyActivity: ActivitySummaryResponse;
 }) {
-  const period = buildReportPeriod(params.startDate, params.endDate);
-  const priorPeriod = calculatePriorPeriod(params.startDate, params.endDate);
   const warnings: ValidationMessage[] = [];
   const directory = flattenOrganizationTree(params.organizationTree);
   const directoryUsers = Array.from(directory.values());
@@ -338,14 +339,22 @@ export async function buildApiReportResult(params: {
     directoryUsers.filter((user) => isSupportedReportRole(user.role) && isEligibleReportUser(user, directoryUsers)),
   );
 
-  const currentActivityByUserId = new Map(params.currentActivity.users.map((user) => [user.userId, user]));
-  const priorActivityByUserId = new Map(params.priorActivity.users.map((user) => [user.userId, user]));
+  const weeklyActivityByUserId = new Map(params.weeklyActivity.users.map((user) => [user.userId, user]));
+  const priorWeeklyActivityByUserId = new Map(params.priorWeeklyActivity.users.map((user) => [user.userId, user]));
+  const biweeklyActivityByUserId = new Map(params.biweeklyActivity.users.map((user) => [user.userId, user]));
+  const priorBiweeklyActivityByUserId = new Map(params.priorBiweeklyActivity.users.map((user) => [user.userId, user]));
 
   let skippedIneligibleActivityUserCount = 0;
   let skippedUsersWithoutDirectoryMatch = 0;
   let skippedUnsupportedRoleUserCount = 0;
+  const currentActivityUsers = [
+    ...params.weeklyActivity.users,
+    ...params.biweeklyActivity.users.filter(
+      (biweeklyUser) => !params.weeklyActivity.users.some((weeklyUser) => weeklyUser.userId === biweeklyUser.userId),
+    ),
+  ];
 
-  for (const activityUser of params.currentActivity.users) {
+  for (const activityUser of currentActivityUsers) {
     const matchedUser = directory.get(activityUser.userId);
 
     if (!matchedUser) {
@@ -372,19 +381,19 @@ export async function buildApiReportResult(params: {
     }
 
     if (isIndividualReportRole(user.role)) {
-      const currentActivityUser = currentActivityByUserId.get(user.userId);
+      const currentActivityUser = weeklyActivityByUserId.get(user.userId);
 
       if (!currentActivityUser) {
         continue;
       }
 
-      const priorActivityUser = priorActivityByUserId.get(user.userId);
+      const priorActivityUser = priorWeeklyActivityByUserId.get(user.userId);
       const report = await buildUserReport({
         user,
         reportRole: user.role,
         currentActivityUsers: [currentActivityUser],
         priorActivityUsers: priorActivityUser ? [priorActivityUser] : [],
-        period,
+        period: params.weeklyPeriod,
         scopeSummary: null,
         scopeEntries: [],
       });
@@ -395,7 +404,7 @@ export async function buildApiReportResult(params: {
 
     if (user.role === "business_owner") {
       const eligibleChildren = getEligibleAccountManagementChildren(directoryUsers, user.userId);
-      const activeChildren = eligibleChildren.filter((child) => currentActivityByUserId.has(child.userId));
+      const activeChildren = eligibleChildren.filter((child) => weeklyActivityByUserId.has(child.userId));
       const scopeSummary: ReportScopeSummary = {
         role: "business_owner",
         eligibleChildCount: eligibleChildren.length,
@@ -403,18 +412,18 @@ export async function buildApiReportResult(params: {
         emptyStateMessage: buildEmptyStateMessage("business_owner", eligibleChildren.length, activeChildren.length),
       };
       const scopeEntries = eligibleChildren
-        .map((child) => toScopeEntry(child, currentActivityByUserId.get(child.userId)))
+        .map((child) => toScopeEntry(child, weeklyActivityByUserId.get(child.userId)))
         .filter((entry): entry is ReportScopeEntry => entry !== null);
       const report = await buildUserReport({
         user,
         reportRole: "business_owner",
         currentActivityUsers: activeChildren
-          .map((child) => currentActivityByUserId.get(child.userId))
+          .map((child) => weeklyActivityByUserId.get(child.userId))
           .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
         priorActivityUsers: eligibleChildren
-          .map((child) => priorActivityByUserId.get(child.userId))
+          .map((child) => priorWeeklyActivityByUserId.get(child.userId))
           .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
-        period,
+        period: params.weeklyPeriod,
         scopeSummary,
         scopeEntries,
       });
@@ -429,7 +438,7 @@ export async function buildApiReportResult(params: {
 
     const eligibleChildren = getEligibleBusinessOwnerChildren(directoryUsers, user.userId);
     const activeChildren = eligibleChildren.filter((child) =>
-      getEligibleAccountManagementChildren(directoryUsers, child.userId).some((teamMember) => currentActivityByUserId.has(teamMember.userId)),
+      getEligibleAccountManagementChildren(directoryUsers, child.userId).some((teamMember) => biweeklyActivityByUserId.has(teamMember.userId)),
     );
     const scopeSummary: ReportScopeSummary = {
       role: "super_admin",
@@ -441,7 +450,7 @@ export async function buildApiReportResult(params: {
       .map((child) => {
         const childTeamMembers = getEligibleAccountManagementChildren(directoryUsers, child.userId);
         const currentChildActivityUsers = childTeamMembers
-          .map((teamMember) => currentActivityByUserId.get(teamMember.userId))
+          .map((teamMember) => biweeklyActivityByUserId.get(teamMember.userId))
           .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser));
         const childMetrics = sumMetrics(currentChildActivityUsers);
 
@@ -465,15 +474,15 @@ export async function buildApiReportResult(params: {
       reportRole: "super_admin",
       currentActivityUsers: eligibleChildren.flatMap((child) =>
         getEligibleAccountManagementChildren(directoryUsers, child.userId)
-          .map((teamMember) => currentActivityByUserId.get(teamMember.userId))
+          .map((teamMember) => biweeklyActivityByUserId.get(teamMember.userId))
           .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
       ),
       priorActivityUsers: eligibleChildren.flatMap((child) =>
         getEligibleAccountManagementChildren(directoryUsers, child.userId)
-          .map((teamMember) => priorActivityByUserId.get(teamMember.userId))
+          .map((teamMember) => priorBiweeklyActivityByUserId.get(teamMember.userId))
           .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
       ),
-      period,
+      period: params.biweeklyPeriod,
       scopeSummary,
       scopeEntries,
     });
@@ -485,11 +494,11 @@ export async function buildApiReportResult(params: {
     reports.push(report);
   }
 
-  if (params.currentActivity.users.length === 0) {
+  if (params.weeklyActivity.users.length === 0 && params.biweeklyActivity.users.length === 0) {
     warnings.push({
       level: "warning",
       code: "empty_activity_window",
-      message: "No activity users were returned for the selected reporting period.",
+      message: "No activity users were returned for the weekly or bi-weekly reporting windows.",
     });
   }
 
@@ -557,11 +566,14 @@ export async function buildApiReportResult(params: {
   return {
     mode: "api",
     generatedAt: new Date().toISOString(),
-    period,
-    priorPeriod,
+    weeklyPeriod: params.weeklyPeriod,
+    priorWeeklyPeriod: params.priorWeeklyPeriod,
+    biweeklyPeriod: params.biweeklyPeriod,
+    priorBiweeklyPeriod: params.priorBiweeklyPeriod,
     warnings,
     summary: {
-      activityUserCount: params.currentActivity.users.length,
+      weeklyActivityUserCount: params.weeklyActivity.users.length,
+      biweeklyActivityUserCount: params.biweeklyActivity.users.length,
       eligibleDirectoryUserCount: eligibleSupportedUsers.length,
       matchedEligibleUserCount: reports.length,
       readyReportCount: reports.filter((report) => report.previewStatus === "ready").length,

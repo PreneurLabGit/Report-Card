@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { buildApiReportResult } from "@/reporting/build-api-report";
 import { fetchActivitySummary, fetchOrganizationTree, SaltHubApiError } from "@/lib/salthub-api";
-import { calculatePriorPeriod } from "@/lib/report-period";
+import { buildBiweeklyPeriodEnding, buildWeeklyPeriodEnding, calculatePriorPeriod } from "@/lib/report-period";
 import { reportGenerationRequestSchema } from "@/schemas/contracts";
 
 export async function POST(request: Request) {
@@ -19,17 +19,28 @@ export async function POST(request: Request) {
       );
     }
 
-    const priorPeriod = calculatePriorPeriod(parsed.data.startDate, parsed.data.endDate);
-    const organizationTree = await fetchOrganizationTree();
-    const currentActivity = await fetchActivitySummary(parsed.data.startDate, parsed.data.endDate);
-    const priorActivity = await fetchActivitySummary(priorPeriod.startDate, priorPeriod.endDate);
+    const weeklyPeriod = buildWeeklyPeriodEnding(parsed.data.endDate);
+    const priorWeeklyPeriod = calculatePriorPeriod(weeklyPeriod.startDate, weeklyPeriod.endDate);
+    const biweeklyPeriod = buildBiweeklyPeriodEnding(parsed.data.endDate);
+    const priorBiweeklyPeriod = calculatePriorPeriod(biweeklyPeriod.startDate, biweeklyPeriod.endDate);
+    const [organizationTree, weeklyActivity, priorWeeklyActivity, biweeklyActivity, priorBiweeklyActivity] = await Promise.all([
+      fetchOrganizationTree(),
+      fetchActivitySummary(weeklyPeriod.startDate, weeklyPeriod.endDate),
+      fetchActivitySummary(priorWeeklyPeriod.startDate, priorWeeklyPeriod.endDate),
+      fetchActivitySummary(biweeklyPeriod.startDate, biweeklyPeriod.endDate),
+      fetchActivitySummary(priorBiweeklyPeriod.startDate, priorBiweeklyPeriod.endDate),
+    ]);
 
     const result = await buildApiReportResult({
-      startDate: parsed.data.startDate,
-      endDate: parsed.data.endDate,
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
       organizationTree,
-      currentActivity,
-      priorActivity,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity,
+      priorBiweeklyActivity,
     });
 
     return NextResponse.json(result);

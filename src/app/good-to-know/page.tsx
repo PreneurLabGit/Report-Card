@@ -20,7 +20,7 @@ export default function GoodToKnowPage() {
           <article className={styles.card}>
             <h2>Current flow</h2>
             <ol className={styles.numberList}>
-              <li>Choose a start date and end date on the homepage.</li>
+              <li>Choose a reporting end date on the homepage.</li>
               <li>Click `Fetch and Generate` to load SaltHub data server-side.</li>
               <li>Review generated Account Management hierarchy reports in the table.</li>
               <li>Open the selected user&apos;s email preview below the table.</li>
@@ -44,8 +44,9 @@ export default function GoodToKnowPage() {
               <li>`business_owner` and `super_admin` users can belong to any department, but they are included when they belong to `Account Management` or sit above eligible Account Management users in the hierarchy.</li>
               <li>Individual user reports are enabled for `team_member`, `project_lead`, `freelancer`, `contributor`, and `department_owner` when they belong to `Account Management`.</li>
               <li>Individual user reports are generated only when that user has activity in the selected period.</li>
+              <li>`team_member` and `business_owner` reports use a trailing weekly window ending on the selected date.</li>
               <li>`business_owner` reports are built from direct eligible Account Management user activity and can render as empty-state reports when no child activity exists.</li>
-              <li>`super_admin` reports are built from direct eligible business-owner rollups, using only eligible child Account Management user activity, and can render as empty-state reports when no child activity exists.</li>
+              <li>`super_admin` reports use a trailing bi-weekly window ending on the selected date and are built from direct eligible business-owner rollups, using only eligible child Account Management user activity.</li>
             </ul>
           </article>
 
@@ -53,8 +54,10 @@ export default function GoodToKnowPage() {
             <h2>What the homepage does</h2>
             <ul className={styles.list}>
               <li>Date-range based report generation</li>
-              <li>Current-period activity fetch</li>
-              <li>Prior equal-length period fetch for comparison readiness</li>
+              <li>One selected report end date</li>
+              <li>Weekly activity fetch for individual users and business owners</li>
+              <li>Bi-weekly activity fetch for super admins</li>
+              <li>Prior equal-length period fetch for each cadence</li>
               <li>Role-aware generated reports table</li>
               <li>User email preview</li>
             </ul>

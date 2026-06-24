@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import type { ActivitySummaryResponse, OrganizationTreeResponse } from "@/lib/domain";
+import type { ActivitySummaryResponse, OrganizationTreeResponse, ReportPeriod } from "@/lib/domain";
 import { buildApiReportResult, flattenOrganizationTree } from "@/reporting/build-api-report";
+
+const weeklyPeriod: ReportPeriod = {
+  startDate: "2026-06-15",
+  endDate: "2026-06-21",
+  displayLabel: "Jun 15, 2026 - Jun 21, 2026",
+};
+
+const priorWeeklyPeriod: ReportPeriod = {
+  startDate: "2026-06-08",
+  endDate: "2026-06-14",
+  displayLabel: "Jun 8, 2026 - Jun 14, 2026",
+};
+
+const biweeklyPeriod: ReportPeriod = {
+  startDate: "2026-06-08",
+  endDate: "2026-06-21",
+  displayLabel: "Jun 8, 2026 - Jun 21, 2026",
+};
+
+const priorBiweeklyPeriod: ReportPeriod = {
+  startDate: "2026-05-25",
+  endDate: "2026-06-07",
+  displayLabel: "May 25, 2026 - Jun 7, 2026",
+};
 
 const organizationTree: OrganizationTreeResponse = {
   superAdmins: [
@@ -45,6 +69,14 @@ const organizationTree: OrganizationTreeResponse = {
               department: "Creative",
               disabled: false,
             },
+            {
+              userId: "tm-4",
+              userName: "Earlier Team Member",
+              email: "tm4@example.com",
+              role: "team_member",
+              department: "Account Management",
+              disabled: false,
+            },
           ],
         },
         {
@@ -61,26 +93,10 @@ const organizationTree: OrganizationTreeResponse = {
   ],
 };
 
-const currentActivity: ActivitySummaryResponse = {
+const weeklyActivity: ActivitySummaryResponse = {
   start_date: "2026-06-15",
   end_date: "2026-06-21",
   users: [
-    {
-      userId: "sa-1",
-      userName: "Super Admin",
-      userEmail: "sa@example.com",
-      loginCount: 9,
-    },
-    {
-      userId: "bo-1",
-      userName: "Business Owner",
-      userEmail: "bo@example.com",
-      loginCount: 4,
-      projectsConfirmed: 2,
-      otherActions: {
-        pipeline_create: 2,
-      },
-    },
     {
       userId: "tm-1",
       userName: "Team Member",
@@ -110,21 +126,46 @@ const currentActivity: ActivitySummaryResponse = {
   ],
 };
 
-const priorActivity: ActivitySummaryResponse = {
+const priorWeeklyActivity: ActivitySummaryResponse = {
   start_date: "2026-06-08",
   end_date: "2026-06-14",
   users: [
-    {
-      userId: "bo-1",
-      userName: "Business Owner",
-      userEmail: "bo@example.com",
-      loginCount: 1,
-    },
     {
       userId: "tm-1",
       userName: "Team Member",
       userEmail: "tm@example.com",
       loginCount: 2,
+    },
+  ],
+};
+
+const biweeklyActivity: ActivitySummaryResponse = {
+  start_date: "2026-06-08",
+  end_date: "2026-06-21",
+  users: [
+    ...weeklyActivity.users,
+    {
+      userId: "tm-4",
+      userName: "Earlier Team Member",
+      userEmail: "tm4@example.com",
+      loginCount: 5,
+      projectsConfirmed: 2,
+      otherActions: {
+        pipeline_create: 1,
+      },
+    },
+  ],
+};
+
+const priorBiweeklyActivity: ActivitySummaryResponse = {
+  start_date: "2026-05-25",
+  end_date: "2026-06-07",
+  users: [
+    {
+      userId: "tm-1",
+      userName: "Team Member",
+      userEmail: "tm@example.com",
+      loginCount: 1,
     },
   ],
 };
@@ -141,13 +182,17 @@ describe("flattenOrganizationTree", () => {
 });
 
 describe("buildApiReportResult", () => {
-  it("generates hierarchy-scoped reports for all eligible AM users and their parent hierarchy", async () => {
+  it("generates hierarchy-scoped reports using weekly and bi-weekly windows by role", async () => {
     const result = await buildApiReportResult({
-      startDate: "2026-06-15",
-      endDate: "2026-06-21",
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
       organizationTree,
-      currentActivity,
-      priorActivity,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity,
+      priorBiweeklyActivity,
     });
 
     expect(result.reports.map((report) => [report.userId, report.role])).toEqual([
@@ -157,23 +202,29 @@ describe("buildApiReportResult", () => {
       ["tm-2", "project_lead"],
       ["tm-1", "team_member"],
     ]);
+    expect(result.summary.weeklyActivityUserCount).toBe(3);
+    expect(result.summary.biweeklyActivityUserCount).toBe(4);
     expect(result.summary.skippedIneligibleActivityUserCount).toBe(1);
     expect(result.summary.skippedUnsupportedRoleUserCount).toBe(0);
   });
 
-  it("builds business owner reports from direct AM user activity only", async () => {
+  it("builds business owner reports from direct AM user weekly activity only", async () => {
     const result = await buildApiReportResult({
-      startDate: "2026-06-15",
-      endDate: "2026-06-21",
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
       organizationTree,
-      currentActivity,
-      priorActivity,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity,
+      priorBiweeklyActivity,
     });
 
     const ownerReport = result.reports.find((report) => report.userId === "bo-1");
     expect(ownerReport?.scopeSummary).toMatchObject({
       role: "business_owner",
-      eligibleChildCount: 2,
+      eligibleChildCount: 3,
       activeChildCount: 2,
       emptyStateMessage: null,
     });
@@ -181,16 +232,21 @@ describe("buildApiReportResult", () => {
     expect(ownerReport?.metrics.pipelineEntriesCreated).toBe(3);
     expect(ownerReport?.metrics.projectsConfirmed).toBe(1);
     expect(ownerReport?.metrics.reworkEvents).toBe(1);
-    expect(ownerReport?.scopeEntries.map((entry) => entry.userId)).toEqual(["tm-2", "tm-1"]);
+    expect(ownerReport?.reportPeriod.startDate).toBe("2026-06-15");
+    expect(ownerReport?.scopeEntries.map((entry) => entry.userId)).toEqual(["tm-4", "tm-2", "tm-1"]);
   });
 
-  it("builds super admin reports from direct business owner rollups only", async () => {
+  it("builds super admin reports from bi-weekly business owner rollups", async () => {
     const result = await buildApiReportResult({
-      startDate: "2026-06-15",
-      endDate: "2026-06-21",
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
       organizationTree,
-      currentActivity,
-      priorActivity,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity,
+      priorBiweeklyActivity,
     });
 
     const superAdminReport = result.reports.find((report) => report.userId === "sa-1");
@@ -200,24 +256,32 @@ describe("buildApiReportResult", () => {
       activeChildCount: 1,
       emptyStateMessage: null,
     });
-    expect(superAdminReport?.metrics.loginCount).toBe(13);
-    expect(superAdminReport?.metrics.pipelineEntriesCreated).toBe(3);
+    expect(superAdminReport?.metrics.loginCount).toBe(18);
+    expect(superAdminReport?.metrics.pipelineEntriesCreated).toBe(4);
+    expect(superAdminReport?.reportPeriod.startDate).toBe("2026-06-08");
     expect(superAdminReport?.scopeEntries.map((entry) => [entry.userId, entry.hasActivity])).toEqual([
       ["bo-1", true],
       ["bo-2", false],
     ]);
   });
 
-  it("generates empty-state parent reports when eligible child activity is absent", async () => {
+  it("generates empty-state parent reports when eligible child activity is absent in the relevant cadence", async () => {
     const result = await buildApiReportResult({
-      startDate: "2026-06-15",
-      endDate: "2026-06-21",
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
       organizationTree,
-      currentActivity: {
-        ...currentActivity,
-        users: currentActivity.users.filter((user) => !["bo-1", "tm-1", "tm-2"].includes(user.userId)),
+      weeklyActivity: {
+        ...weeklyActivity,
+        users: weeklyActivity.users.filter((user) => !["tm-1", "tm-2"].includes(user.userId)),
       },
-      priorActivity,
+      priorWeeklyActivity,
+      biweeklyActivity: {
+        ...biweeklyActivity,
+        users: biweeklyActivity.users.filter((user) => !["tm-1", "tm-2", "tm-4"].includes(user.userId)),
+      },
+      priorBiweeklyActivity,
     });
 
     const ownerReport = result.reports.find((report) => report.userId === "bo-1");

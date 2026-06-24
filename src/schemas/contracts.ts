@@ -33,13 +33,9 @@ export const clientSummarySchema = z.object({
 
 export const reportGenerationRequestSchema = z
   .object({
-    startDate: z.string().date(),
     endDate: z.string().date(),
+    startDate: z.string().date().optional(),
     mode: z.literal("api").default("api"),
-  })
-  .refine((value) => value.startDate <= value.endDate, {
-    path: ["endDate"],
-    message: "endDate must be on or after startDate.",
   });
 
 const supportedReportRoleSchema = z.enum([

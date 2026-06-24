@@ -320,6 +320,10 @@
   color: #334155;
 }
 
+.singleField {
+  grid-column: 1 / -1;
+}
+
 .input {
   min-height: 46px;
   border: 1px solid #cbd5e1;

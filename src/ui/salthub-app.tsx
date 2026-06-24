@@ -200,7 +200,6 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
 function getDefaultDates() {
   const now = new Date();
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
 
   const formatDateInputValue = (value: Date) => {
     const year = value.getFullYear();
@@ -210,7 +209,6 @@ function getDefaultDates() {
   };
 
   return {
-    startDate: formatDateInputValue(start),
     endDate: formatDateInputValue(end),
     maxDate: formatDateInputValue(end),
   };
@@ -218,7 +216,6 @@ function getDefaultDates() {
 
 export function SalthubApp() {
   const defaults = useMemo(() => getDefaultDates(), []);
-  const [startDate, setStartDate] = useState(defaults.startDate);
   const [endDate, setEndDate] = useState(defaults.endDate);
   const [apiResult, setApiResult] = useState<ApiReportResult | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
@@ -282,7 +279,6 @@ export function SalthubApp() {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            startDate,
             endDate,
             mode: "api",
           }),
@@ -459,18 +455,8 @@ export function SalthubApp() {
             </div>
 
             <div className={styles.formGrid}>
-              <label className={styles.field}>
-                <span>Start date</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  max={defaults.maxDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                  className={styles.input}
-                />
-              </label>
-              <label className={styles.field}>
-                <span>End date</span>
+              <label className={`${styles.field} ${styles.singleField}`}>
+                <span>Report end date</span>
                 <input
                   type="date"
                   value={endDate}
@@ -485,6 +471,9 @@ export function SalthubApp() {
               <button type="button" className={styles.primaryButton} onClick={handleFetchGenerate} disabled={isPending}>
                 {isPending ? "Generating..." : "Fetch and Generate"}
               </button>
+              <p className={styles.helperText}>
+                Team Member and Business Owner reports use the trailing 7 days. Super Admin reports use the trailing 14 days.
+              </p>
             </div>
 
             {apiError ? <p className={styles.errorText}>{apiError}</p> : null}
@@ -539,8 +528,12 @@ export function SalthubApp() {
 
                 <div className={styles.summaryGrid}>
                   <div className={styles.summaryTile}>
-                    <span>Activity users</span>
-                    <strong>{apiResult.summary.activityUserCount}</strong>
+                    <span>Weekly activity users</span>
+                    <strong>{apiResult.summary.weeklyActivityUserCount}</strong>
+                  </div>
+                  <div className={styles.summaryTile}>
+                    <span>Bi-weekly activity users</span>
+                    <strong>{apiResult.summary.biweeklyActivityUserCount}</strong>
                   </div>
                   <div className={styles.summaryTile}>
                     <span>Eligible hierarchy users</span>
@@ -656,7 +649,7 @@ export function SalthubApp() {
               <div>
                 <h2>Email preview</h2>
               </div>
-              <span className={styles.cardBadge}>{apiResult ? apiResult.period.displayLabel : "Select a user"}</span>
+              <span className={styles.cardBadge}>{selectedApiReport ? selectedApiReport.reportPeriod.displayLabel : "Select a user"}</span>
             </div>
 
             {selectedApiReport ? <ApiReportPreview report={selectedApiReport} /> : <ApiPreviewPlaceholder />}

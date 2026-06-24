@@ -233,7 +233,8 @@ export interface NormalizedUserReport {
 }
 
 export interface ApiReportSummary {
-  activityUserCount: number;
+  weeklyActivityUserCount: number;
+  biweeklyActivityUserCount: number;
   eligibleDirectoryUserCount: number;
   matchedEligibleUserCount: number;
   readyReportCount: number;
@@ -256,8 +257,10 @@ export interface EmailDeliveryConfigSummary {
 export interface ApiReportResult {
   mode: "api";
   generatedAt: string;
-  period: ReportPeriod;
-  priorPeriod: ReportPeriod;
+  weeklyPeriod: ReportPeriod;
+  priorWeeklyPeriod: ReportPeriod;
+  biweeklyPeriod: ReportPeriod;
+  priorBiweeklyPeriod: ReportPeriod;
   warnings: ValidationMessage[];
   summary: ApiReportSummary;
   emailDelivery: EmailDeliveryConfigSummary;

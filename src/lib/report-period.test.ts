@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildReportPeriod, calculatePriorPeriod } from "@/lib/report-period";
+import { buildBiweeklyPeriodEnding, buildReportPeriod, buildWeeklyPeriodEnding, calculatePriorPeriod } from "@/lib/report-period";
 
 describe("report periods", () => {
   it("builds a display label", () => {
@@ -22,5 +22,19 @@ describe("report periods", () => {
 
     expect(period.startDate).toBe("2026-05-02");
     expect(period.endDate).toBe("2026-05-31");
+  });
+
+  it("builds a trailing weekly period from an end date", () => {
+    const period = buildWeeklyPeriodEnding("2026-06-21");
+
+    expect(period.startDate).toBe("2026-06-15");
+    expect(period.endDate).toBe("2026-06-21");
+  });
+
+  it("builds a trailing bi-weekly period from an end date", () => {
+    const period = buildBiweeklyPeriodEnding("2026-06-21");
+
+    expect(period.startDate).toBe("2026-06-08");
+    expect(period.endDate).toBe("2026-06-21");
   });
 });

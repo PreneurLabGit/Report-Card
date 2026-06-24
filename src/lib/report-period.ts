@@ -6,6 +6,10 @@ function toUtcDate(value: string) {
   return new Date(`${value}T00:00:00Z`);
 }
 
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
 function formatDay(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -27,6 +31,13 @@ export function buildReportPeriod(startDate: string, endDate: string): ReportPer
   };
 }
 
+export function buildTrailingPeriod(endDate: string, lengthInDays: number): ReportPeriod {
+  const end = toUtcDate(endDate);
+  const start = new Date(end.getTime() - (lengthInDays - 1) * DAY_IN_MS);
+
+  return buildReportPeriod(toIsoDate(start), toIsoDate(end));
+}
+
 export function calculatePriorPeriod(startDate: string, endDate: string): ReportPeriod {
   const start = toUtcDate(startDate);
   const end = toUtcDate(endDate);
@@ -34,7 +45,13 @@ export function calculatePriorPeriod(startDate: string, endDate: string): Report
   const priorEnd = new Date(start.getTime() - DAY_IN_MS);
   const priorStart = new Date(priorEnd.getTime() - (lengthInDays - 1) * DAY_IN_MS);
 
-  const toIsoDate = (date: Date) => date.toISOString().slice(0, 10);
-
   return buildReportPeriod(toIsoDate(priorStart), toIsoDate(priorEnd));
+}
+
+export function buildWeeklyPeriodEnding(endDate: string) {
+  return buildTrailingPeriod(endDate, 7);
+}
+
+export function buildBiweeklyPeriodEnding(endDate: string) {
+  return buildTrailingPeriod(endDate, 14);
 }
