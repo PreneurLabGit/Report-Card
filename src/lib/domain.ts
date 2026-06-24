@@ -127,6 +127,7 @@ export interface ActivityUserSummary {
   loginCount?: number;
   projectsConfirmed?: number;
   sentForBusinessOwnerApproval?: number;
+  estimatesCreated?: number;
   otherActions?: Record<string, number>;
 }
 

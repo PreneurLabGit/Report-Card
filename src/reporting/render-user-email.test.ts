@@ -18,7 +18,7 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
   metrics: {
     loginCount: 6,
     pipelineEntriesCreated: 4,
-    estimatesCreated: null,
+    estimatesCreated: 4,
     estimatesSubmitted: 3,
     sentForBusinessOwnerApproval: 0,
     firstApprovals: 0,
@@ -59,7 +59,8 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("JUNE 16");
     expect(rendered.html).toContain("Logins");
     expect(rendered.html).toContain("6");
-    expect(rendered.html).toContain("N/A");
+    expect(rendered.html).toContain("Estimates created");
+    expect(rendered.html).toContain("4");
   });
 
   it("renders the business owner template with sample manager sections", async () => {

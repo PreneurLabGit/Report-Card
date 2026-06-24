@@ -35,6 +35,7 @@ const INDIVIDUAL_REPORT_ROLE_SET = new Set<string>(INDIVIDUAL_REPORT_ROLES);
 interface AggregatedMetrics {
   loginCount: number;
   pipelineEntriesCreated: number;
+  estimatesCreated: number;
   estimatesSubmitted: number;
   sentForBusinessOwnerApproval: number;
   firstApprovals: number;
@@ -53,6 +54,7 @@ function getActivityMetrics(user?: ActivityUserSummary): AggregatedMetrics {
     return {
       loginCount: 0,
       pipelineEntriesCreated: 0,
+      estimatesCreated: 0,
       estimatesSubmitted: 0,
       sentForBusinessOwnerApproval: 0,
       firstApprovals: 0,
@@ -66,6 +68,7 @@ function getActivityMetrics(user?: ActivityUserSummary): AggregatedMetrics {
   return {
     loginCount: user.loginCount ?? 0,
     pipelineEntriesCreated: getActionCount(user, "pipeline_create"),
+    estimatesCreated: user.estimatesCreated ?? 0,
     estimatesSubmitted: getActionCount(user, "estimate_submit_for_approval"),
     sentForBusinessOwnerApproval: user.sentForBusinessOwnerApproval ?? 0,
     firstApprovals: getActionCount(user, "estimate_approve_first"),
@@ -83,6 +86,7 @@ function sumMetrics(users: ActivityUserSummary[]) {
 
       total.loginCount += metrics.loginCount;
       total.pipelineEntriesCreated += metrics.pipelineEntriesCreated;
+      total.estimatesCreated += metrics.estimatesCreated;
       total.estimatesSubmitted += metrics.estimatesSubmitted;
       total.sentForBusinessOwnerApproval += metrics.sentForBusinessOwnerApproval;
       total.firstApprovals += metrics.firstApprovals;
@@ -96,6 +100,7 @@ function sumMetrics(users: ActivityUserSummary[]) {
     {
       loginCount: 0,
       pipelineEntriesCreated: 0,
+      estimatesCreated: 0,
       estimatesSubmitted: 0,
       sentForBusinessOwnerApproval: 0,
       firstApprovals: 0,
@@ -172,7 +177,7 @@ function getMissingFields(user: DirectoryUser, scoreAvailable: boolean) {
     missing.push("score", "priorPeriodScore", "wowScoreDelta");
   }
 
-  missing.push("estimatesCreated", "activeDaysCount", "lastActivityTs");
+  missing.push("activeDaysCount", "lastActivityTs");
 
   return missing;
 }
@@ -266,7 +271,7 @@ async function buildUserReport(params: {
     metrics: {
       loginCount: currentMetrics.loginCount,
       pipelineEntriesCreated: currentMetrics.pipelineEntriesCreated,
-      estimatesCreated: null,
+      estimatesCreated: currentMetrics.estimatesCreated,
       estimatesSubmitted: currentMetrics.estimatesSubmitted,
       sentForBusinessOwnerApproval: currentMetrics.sentForBusinessOwnerApproval,
       firstApprovals: currentMetrics.firstApprovals,
@@ -331,12 +336,25 @@ export async function buildApiReportResult(params: {
   priorWeeklyActivity: ActivitySummaryResponse;
   biweeklyActivity: ActivitySummaryResponse;
   priorBiweeklyActivity: ActivitySummaryResponse;
+  includeSuperAdminReports?: boolean;
+  baseWarnings?: ValidationMessage[];
 }) {
-  const warnings: ValidationMessage[] = [];
+  const warnings: ValidationMessage[] = [...(params.baseWarnings ?? [])];
+  const includeSuperAdminReports = params.includeSuperAdminReports ?? true;
   const directory = flattenOrganizationTree(params.organizationTree);
   const directoryUsers = Array.from(directory.values());
   const eligibleSupportedUsers = sortUsers(
-    directoryUsers.filter((user) => isSupportedReportRole(user.role) && isEligibleReportUser(user, directoryUsers)),
+    directoryUsers.filter((user) => {
+      if (!isSupportedReportRole(user.role) || !isEligibleReportUser(user, directoryUsers)) {
+        return false;
+      }
+
+      if (!includeSuperAdminReports && user.role === "super_admin") {
+        return false;
+      }
+
+      return true;
+    }),
   );
 
   const weeklyActivityByUserId = new Map(params.weeklyActivity.users.map((user) => [user.userId, user]));

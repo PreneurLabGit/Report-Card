@@ -104,6 +104,7 @@ const weeklyActivity: ActivitySummaryResponse = {
       loginCount: 6,
       projectsConfirmed: 1,
       sentForBusinessOwnerApproval: 1,
+      estimatesCreated: 4,
       otherActions: {
         pipeline_create: 3,
         estimate_submit_for_approval: 2,
@@ -230,6 +231,7 @@ describe("buildApiReportResult", () => {
     });
     expect(ownerReport?.metrics.loginCount).toBe(13);
     expect(ownerReport?.metrics.pipelineEntriesCreated).toBe(3);
+    expect(ownerReport?.metrics.estimatesCreated).toBe(4);
     expect(ownerReport?.metrics.projectsConfirmed).toBe(1);
     expect(ownerReport?.metrics.reworkEvents).toBe(1);
     expect(ownerReport?.reportPeriod.startDate).toBe("2026-06-15");
@@ -258,6 +260,7 @@ describe("buildApiReportResult", () => {
     });
     expect(superAdminReport?.metrics.loginCount).toBe(18);
     expect(superAdminReport?.metrics.pipelineEntriesCreated).toBe(4);
+    expect(superAdminReport?.metrics.estimatesCreated).toBe(4);
     expect(superAdminReport?.reportPeriod.startDate).toBe("2026-06-08");
     expect(superAdminReport?.scopeEntries.map((entry) => [entry.userId, entry.hasActivity])).toEqual([
       ["bo-1", true],
@@ -292,5 +295,34 @@ describe("buildApiReportResult", () => {
     expect(idleOwnerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management users");
     expect(superAdminReport?.scopeSummary?.emptyStateMessage).toContain("No eligible business owner activity");
     expect(result.summary.emptyStateReportCount).toBe(3);
+  });
+
+  it("can skip super admin reports when bi-weekly activity is unavailable upstream", async () => {
+    const result = await buildApiReportResult({
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
+      organizationTree,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity: {
+        start_date: biweeklyPeriod.startDate,
+        end_date: biweeklyPeriod.endDate,
+        users: [],
+      },
+      priorBiweeklyActivity,
+      includeSuperAdminReports: false,
+      baseWarnings: [
+        {
+          level: "warning",
+          code: "biweekly_activity_unavailable",
+          message: "Super Admin reports were skipped because the bi-weekly activity window could not be loaded.",
+        },
+      ],
+    });
+
+    expect(result.reports.some((report) => report.role === "super_admin")).toBe(false);
+    expect(result.warnings.some((warning) => warning.code === "biweekly_activity_unavailable")).toBe(true);
   });
 });

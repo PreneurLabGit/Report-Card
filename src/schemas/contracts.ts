@@ -157,6 +157,7 @@ export const activityUserSummarySchema = z.object({
   loginCount: z.number().optional(),
   projectsConfirmed: z.number().optional(),
   sentForBusinessOwnerApproval: z.number().optional(),
+  estimatesCreated: z.number().optional(),
   otherActions: z.record(z.string(), z.number()).optional(),
 });
 
