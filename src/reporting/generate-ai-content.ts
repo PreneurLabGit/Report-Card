@@ -24,6 +24,9 @@ function toSafeScopeEntries(entries: ReportScopeEntry[]) {
     userName: entry.userName,
     role: entry.role,
     hasActivity: entry.hasActivity,
+    score: entry.score,
+    status: entry.status,
+    activeDisplay: entry.activeDisplay,
     metrics: entry.metrics,
   }));
 }

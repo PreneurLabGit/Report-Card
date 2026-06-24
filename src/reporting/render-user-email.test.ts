@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 
 import type { NormalizedUserReport } from "@/lib/domain";
+import { calculateTeamMemberScore, getScoreStatus } from "@/lib/scoring";
 import { renderUserEmailHtml } from "@/reporting/render-user-email";
+
+const baseScore = calculateTeamMemberScore({
+  loginCount: 6,
+  pipelineEntriesCreated: 4,
+  estimatesCreated: 4,
+  estimatesSubmitted: 3,
+  sentForBusinessOwnerApproval: 0,
+  firstApprovals: 0,
+  approvalsCompleted: 2,
+  clientApprovals: 0,
+  projectsConfirmed: 2,
+  reworkEvents: 0,
+});
 
 const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
   userId: "tm-1",
@@ -28,14 +42,26 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
     reworkEvents: 0,
     activeDaysCount: null,
     lastActivityTs: null,
-    score: null,
-    priorPeriodScore: null,
-    wowScoreDelta: null,
+    score: baseScore,
+    priorPeriodScore: 72,
+    wowScoreDelta: baseScore - 72,
   },
-  status: {
-    label: null,
-    color: null,
-  },
+  status: getScoreStatus(
+    {
+      loginCount: 6,
+      pipelineEntriesCreated: 4,
+      estimatesCreated: 4,
+      estimatesSubmitted: 3,
+      sentForBusinessOwnerApproval: 0,
+      firstApprovals: 0,
+      approvalsCompleted: 2,
+      clientApprovals: 0,
+      projectsConfirmed: 2,
+      reworkEvents: 0,
+    },
+    baseScore,
+    72,
+  ),
   content: {
     lede: "",
     observation: "",
@@ -43,8 +69,10 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
     worthDoingThisWeek: [],
     coachingItems: [],
   },
-  missingFields: ["score"],
+  missingFields: [],
   previewStatus: "ready",
+  narrativeStatus: "fallback",
+  narrativeDetail: null,
   scopeSummary: null,
   scopeEntries: [],
 };
@@ -81,6 +109,8 @@ describe("renderUserEmailHtml", () => {
         role: "business_owner",
         eligibleChildCount: 5,
         activeChildCount: 3,
+        teamSize: 5,
+        managerCount: null,
         emptyStateMessage: null,
       },
       content: {
@@ -115,6 +145,8 @@ describe("renderUserEmailHtml", () => {
         role: "super_admin",
         eligibleChildCount: 3,
         activeChildCount: 2,
+        teamSize: 11,
+        managerCount: 3,
         emptyStateMessage: null,
       },
       content: {
@@ -129,12 +161,22 @@ describe("renderUserEmailHtml", () => {
           role: "business_owner",
           disabled: false,
           hasActivity: true,
+          score: 84,
+          status: {
+            label: "Reliable",
+            color: "green",
+          },
+          activeDisplay: "3 / 5",
           metrics: {
             loginCount: 8,
             projectsConfirmed: 3,
             pipelineEntriesCreated: 5,
+            estimatesCreated: 5,
             estimatesSubmitted: 2,
+            sentForBusinessOwnerApproval: 0,
+            firstApprovals: 0,
             approvalsCompleted: 1,
+            clientApprovals: 0,
             reworkEvents: 0,
           },
         },
@@ -144,12 +186,22 @@ describe("renderUserEmailHtml", () => {
           role: "business_owner",
           disabled: false,
           hasActivity: true,
+          score: 66,
+          status: {
+            label: "Holding",
+            color: "yellow",
+          },
+          activeDisplay: "2 / 4",
           metrics: {
             loginCount: 5,
             projectsConfirmed: 2,
             pipelineEntriesCreated: 4,
+            estimatesCreated: 4,
             estimatesSubmitted: 1,
+            sentForBusinessOwnerApproval: 0,
+            firstApprovals: 0,
             approvalsCompleted: 1,
+            clientApprovals: 0,
             reworkEvents: 1,
           },
         },
@@ -161,5 +213,7 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("Friction themes across your span");
     expect(rendered.html).toContain("Jordan Lee");
     expect(rendered.html).toContain("Review Casey Brown first.");
+    expect(rendered.html).toContain("84");
+    expect(rendered.html).toContain("3 / 5");
   });
 });

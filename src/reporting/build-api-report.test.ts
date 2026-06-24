@@ -227,6 +227,8 @@ describe("buildApiReportResult", () => {
       role: "business_owner",
       eligibleChildCount: 3,
       activeChildCount: 2,
+      teamSize: 3,
+      managerCount: null,
       emptyStateMessage: null,
     });
     expect(ownerReport?.metrics.loginCount).toBe(13);
@@ -256,6 +258,8 @@ describe("buildApiReportResult", () => {
       role: "super_admin",
       eligibleChildCount: 2,
       activeChildCount: 1,
+      teamSize: 3,
+      managerCount: 2,
       emptyStateMessage: null,
     });
     expect(superAdminReport?.metrics.loginCount).toBe(18);

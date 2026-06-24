@@ -24,17 +24,31 @@ describe("report periods", () => {
     expect(period.endDate).toBe("2026-05-31");
   });
 
-  it("builds a trailing weekly period from an end date", () => {
+  it("builds a Monday-start weekly period from an end date", () => {
     const period = buildWeeklyPeriodEnding("2026-06-21");
 
     expect(period.startDate).toBe("2026-06-15");
     expect(period.endDate).toBe("2026-06-21");
   });
 
-  it("builds a trailing bi-weekly period from an end date", () => {
+  it("builds a Monday-start bi-weekly period from an end date", () => {
     const period = buildBiweeklyPeriodEnding("2026-06-21");
 
     expect(period.startDate).toBe("2026-06-08");
     expect(period.endDate).toBe("2026-06-21");
+  });
+
+  it("starts a midweek weekly period on Monday of the same week", () => {
+    const period = buildWeeklyPeriodEnding("2026-06-24");
+
+    expect(period.startDate).toBe("2026-06-22");
+    expect(period.endDate).toBe("2026-06-24");
+  });
+
+  it("starts a midweek bi-weekly period on the Monday of the previous week", () => {
+    const period = buildBiweeklyPeriodEnding("2026-06-24");
+
+    expect(period.startDate).toBe("2026-06-15");
+    expect(period.endDate).toBe("2026-06-24");
   });
 });

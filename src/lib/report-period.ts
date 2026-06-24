@@ -10,6 +10,12 @@ function toIsoDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function getMondayStart(date: Date) {
+  const dayOfWeek = date.getUTCDay();
+  const offsetFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  return new Date(date.getTime() - offsetFromMonday * DAY_IN_MS);
+}
+
 function formatDay(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -49,9 +55,16 @@ export function calculatePriorPeriod(startDate: string, endDate: string): Report
 }
 
 export function buildWeeklyPeriodEnding(endDate: string) {
-  return buildTrailingPeriod(endDate, 7);
+  const end = toUtcDate(endDate);
+  const start = getMondayStart(end);
+
+  return buildReportPeriod(toIsoDate(start), toIsoDate(end));
 }
 
 export function buildBiweeklyPeriodEnding(endDate: string) {
-  return buildTrailingPeriod(endDate, 14);
+  const end = toUtcDate(endDate);
+  const currentWeekMonday = getMondayStart(end);
+  const start = new Date(currentWeekMonday.getTime() - 7 * DAY_IN_MS);
+
+  return buildReportPeriod(toIsoDate(start), toIsoDate(end));
 }

@@ -164,12 +164,22 @@ export interface ReportScopeEntry {
   role: SupportedReportRole;
   disabled: boolean;
   hasActivity: boolean;
+  score: number | null;
+  status: {
+    label: string | null;
+    color: "green" | "yellow" | "red" | null;
+  };
+  activeDisplay: string | null;
   metrics: {
     loginCount: number;
     projectsConfirmed: number;
     pipelineEntriesCreated: number;
+    estimatesCreated: number;
     estimatesSubmitted: number;
+    sentForBusinessOwnerApproval: number;
+    firstApprovals: number;
     approvalsCompleted: number;
+    clientApprovals: number;
     reworkEvents: number;
   };
 }
@@ -178,6 +188,8 @@ export interface ReportScopeSummary {
   role: SupportedReportRole;
   eligibleChildCount: number;
   activeChildCount: number;
+  teamSize: number | null;
+  managerCount: number | null;
   emptyStateMessage: string | null;
 }
 

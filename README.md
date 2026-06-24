@@ -44,7 +44,6 @@ The main page:
 
 Current API-first limitations:
 
-- no official score formula yet, so score/prior-score/delta remain unavailable
 - no database or historical persistence
 - friction-note AI sections still use placeholders until that source is wired
 
@@ -96,6 +95,7 @@ npm run build
 - The primary generation path is API-first and keeps external credentials off the client.
 - Only users whose own department is exactly `Account Management` are eligible in the current release.
 - Only `team_member`, `business_owner`, and `super_admin` are enabled for report generation right now.
+- Weekly reports now start on Monday of the selected week. Super Admin reports start on Monday of the previous week and run through the selected end date.
 - The current product flow uses the SaltHub APIs only.
 - OpenAI narrative generation is optional and falls back to deterministic placeholder copy if `OpenAI_API_Key` is missing or the request fails.
 - Brevo sending is server-side only and requires a sender email.

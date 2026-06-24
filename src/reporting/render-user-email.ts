@@ -1,5 +1,6 @@
 import type { NormalizedUserReport, ReportScopeEntry } from "@/lib/domain";
 import { formatNumber } from "@/lib/format";
+import { getScopeEntryStatusText } from "@/lib/scoring";
 
 function escapeHtml(value: string) {
   return value
@@ -300,9 +301,9 @@ function buildLeaderManagerRows(entries: ReportScopeEntry[]) {
 
   const rows = activeFirst.slice(0, 3).map((entry) => ({
     name: entry.userName,
-    status: "N/A",
-    score: "N/A",
-    active: entry.hasActivity ? formatNumber(entry.metrics.loginCount) : "0",
+    status: getScopeEntryStatusText(entry),
+    score: entry.score === null ? "N/A" : formatNumber(entry.score),
+    active: entry.activeDisplay ?? "N/A",
     confirmed: entry.hasActivity ? formatNumber(entry.metrics.projectsConfirmed) : "0",
   }));
 
@@ -658,7 +659,7 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
   const actions = buildManagerActions(report);
   const friction = buildManagerFrictionNote();
   const activeChildCount = report.scopeSummary?.activeChildCount ?? 0;
-  const eligibleChildCount = report.scopeSummary?.eligibleChildCount ?? 0;
+  const teamSize = report.scopeSummary?.teamSize ?? report.scopeSummary?.eligibleChildCount ?? 0;
 
   const body = `
     ${headerBlock({
@@ -666,17 +667,17 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
       metaLabel: formatWeekLabel(report.reportPeriod.startDate),
       statusHtml: statusPill(report),
       title: `${escapeHtml(report.userName)} — ${escapeHtml(humanizeTeam(report.department))}`,
-      subline: `Eligible team members: ${formatNumber(eligibleChildCount)} · Active this period: ${formatNumber(activeChildCount)}`,
+      subline: `Team size: ${formatNumber(teamSize)} - Active this period: ${formatNumber(activeChildCount)}`,
     })}
     ${ledeBlock(buildManagerLede(report))}
     ${sectionWrap(
       `${sectionLabel("The numbers")}${metricsTable(
         [
           {
-            value: `${formatNumber(activeChildCount)} of ${formatNumber(eligibleChildCount)}`,
+            value: `${formatNumber(activeChildCount)} of ${formatNumber(teamSize)}`,
             label: "Active users",
             sub:
-              eligibleChildCount === 0
+              teamSize === 0
                 ? "no eligible Account Management users found"
                 : activeChildCount === 0
                   ? "no eligible Account Management user activity in this period"
@@ -734,7 +735,8 @@ function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templ
   const friction = buildLeaderFrictionTheme();
   const rows = buildLeaderManagerRows(report.scopeEntries);
   const activeChildCount = report.scopeSummary?.activeChildCount ?? 0;
-  const eligibleChildCount = report.scopeSummary?.eligibleChildCount ?? 0;
+  const managerCount = report.scopeSummary?.managerCount ?? report.scopeSummary?.eligibleChildCount ?? 0;
+  const teamSize = report.scopeSummary?.teamSize ?? 0;
 
   const body = `
     ${headerBlock({
@@ -742,7 +744,7 @@ function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templ
       metaLabel: formatPeriodEndingLabel(report.reportPeriod.endDate),
       statusHtml: statusPill(report),
       title: `${escapeHtml(report.userName)} — ${escapeHtml(humanizeTeam(report.department))} Leadership`,
-      subline: `Business owners: ${formatNumber(eligibleChildCount)} · Active this period: ${formatNumber(activeChildCount)} · Leader score: N/A`,
+      subline: `Business owners: ${formatNumber(managerCount)} - Team size: ${formatNumber(teamSize)} - Active this period: ${formatNumber(activeChildCount)} - Leader score: ${report.metrics.score === null ? "N/A" : formatNumber(report.metrics.score)}`,
     })}
     ${ledeBlock(buildLeaderLede(report))}
     ${sectionWrap(`${sectionLabel("Your managers, side by side")}${compareTable(rows)}`)}

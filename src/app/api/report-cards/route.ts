@@ -51,8 +51,9 @@ export async function POST(request: Request) {
       priorWeeklyActivityResult.status === "fulfilled"
         ? priorWeeklyActivityResult.value
         : createEmptyActivitySummary(priorWeeklyPeriod.startDate, priorWeeklyPeriod.endDate);
+    const priorWeeklyAvailable = priorWeeklyActivityResult.status === "fulfilled";
 
-    if (priorWeeklyActivityResult.status === "rejected") {
+    if (!priorWeeklyAvailable) {
       const message =
         priorWeeklyActivityResult.reason instanceof SaltHubApiError
           ? priorWeeklyActivityResult.reason.message
@@ -86,8 +87,9 @@ export async function POST(request: Request) {
       priorBiweeklyActivityResult.status === "fulfilled"
         ? priorBiweeklyActivityResult.value
         : createEmptyActivitySummary(priorBiweeklyPeriod.startDate, priorBiweeklyPeriod.endDate);
+    const priorBiweeklyAvailable = priorBiweeklyActivityResult.status === "fulfilled";
 
-    if (priorBiweeklyActivityResult.status === "rejected") {
+    if (!priorBiweeklyAvailable) {
       const message =
         priorBiweeklyActivityResult.reason instanceof SaltHubApiError
           ? priorBiweeklyActivityResult.reason.message
@@ -111,6 +113,8 @@ export async function POST(request: Request) {
       priorBiweeklyActivity,
       includeSuperAdminReports,
       baseWarnings,
+      priorWeeklyAvailable,
+      priorBiweeklyAvailable,
     });
 
     return NextResponse.json(result);

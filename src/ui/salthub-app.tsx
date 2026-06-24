@@ -472,7 +472,7 @@ export function SalthubApp() {
                 {isPending ? "Generating..." : "Fetch and Generate"}
               </button>
               <p className={styles.helperText}>
-                Team Member and Business Owner reports use the trailing 7 days. Super Admin reports use the trailing 14 days.
+                Team Member and Business Owner reports start on Monday of the selected week. Super Admin reports start on Monday of the previous week.
               </p>
             </div>
 

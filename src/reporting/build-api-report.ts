@@ -13,6 +13,13 @@ import type {
 } from "@/lib/domain";
 import { getEmailDeliveryConfigSummary } from "@/lib/brevo";
 import { flattenOrganizationTree } from "@/lib/organization-tree";
+import {
+  calculateBusinessOwnerScore,
+  calculateSuperAdminScore,
+  calculateTeamMemberScore,
+  getScoreStatus,
+  type ScoreMetrics,
+} from "@/lib/scoring";
 import { generateAiNarrativeContent } from "@/reporting/generate-ai-content";
 import { renderUserEmailHtml } from "@/reporting/render-user-email";
 
@@ -32,18 +39,7 @@ const SUPPORTED_REPORT_ROLES: SupportedReportRole[] = [
 const SUPPORTED_REPORT_ROLE_SET = new Set<string>(SUPPORTED_REPORT_ROLES);
 const INDIVIDUAL_REPORT_ROLE_SET = new Set<string>(INDIVIDUAL_REPORT_ROLES);
 
-interface AggregatedMetrics {
-  loginCount: number;
-  pipelineEntriesCreated: number;
-  estimatesCreated: number;
-  estimatesSubmitted: number;
-  sentForBusinessOwnerApproval: number;
-  firstApprovals: number;
-  approvalsCompleted: number;
-  clientApprovals: number;
-  projectsConfirmed: number;
-  reworkEvents: number;
-}
+type AggregatedMetrics = ScoreMetrics;
 
 function getActionCount(user: ActivityUserSummary, key: string) {
   return user.otherActions?.[key] ?? 0;
@@ -158,7 +154,14 @@ function isSupportedReportRole(role: string | null): role is SupportedReportRole
   return role !== null && SUPPORTED_REPORT_ROLE_SET.has(role);
 }
 
-function getMissingFields(user: DirectoryUser, scoreAvailable: boolean) {
+function getMissingFields(
+  user: DirectoryUser,
+  availability: {
+    scoreAvailable: boolean;
+    priorPeriodScoreAvailable: boolean;
+    wowScoreDeltaAvailable: boolean;
+  },
+) {
   const missing: string[] = [];
 
   if (!user.email) {
@@ -173,8 +176,16 @@ function getMissingFields(user: DirectoryUser, scoreAvailable: boolean) {
     missing.push("department");
   }
 
-  if (!scoreAvailable) {
-    missing.push("score", "priorPeriodScore", "wowScoreDelta");
+  if (!availability.scoreAvailable) {
+    missing.push("score");
+  }
+
+  if (!availability.priorPeriodScoreAvailable) {
+    missing.push("priorPeriodScore");
+  }
+
+  if (!availability.wowScoreDeltaAvailable) {
+    missing.push("wowScoreDelta");
   }
 
   missing.push("activeDaysCount", "lastActivityTs");
@@ -220,8 +231,13 @@ function buildEmptyStateMessage(role: SupportedReportRole, eligibleChildCount: n
 function toScopeEntry(
   user: DirectoryUser,
   activityUser?: ActivityUserSummary,
-  metricsOverride?: ReportScopeEntry["metrics"],
-  hasActivityOverride?: boolean,
+  options?: {
+    metricsOverride?: ReportScopeEntry["metrics"];
+    hasActivityOverride?: boolean;
+    score?: number | null;
+    status?: ReportScopeEntry["status"];
+    activeDisplay?: string | null;
+  },
 ): ReportScopeEntry | null {
   if (!isSupportedReportRole(user.role)) {
     return null;
@@ -234,14 +250,24 @@ function toScopeEntry(
     userName: user.userName,
     role: user.role,
     disabled: user.disabled,
-    hasActivity: hasActivityOverride ?? Boolean(activityUser),
+    hasActivity: options?.hasActivityOverride ?? Boolean(activityUser),
+    score: options?.score ?? null,
+    status: options?.status ?? {
+      label: null,
+      color: null,
+    },
+    activeDisplay: options?.activeDisplay ?? null,
     metrics:
-      metricsOverride ?? {
+      options?.metricsOverride ?? {
         loginCount: metrics.loginCount,
         projectsConfirmed: metrics.projectsConfirmed,
         pipelineEntriesCreated: metrics.pipelineEntriesCreated,
+        estimatesCreated: metrics.estimatesCreated,
         estimatesSubmitted: metrics.estimatesSubmitted,
+        sentForBusinessOwnerApproval: metrics.sentForBusinessOwnerApproval,
+        firstApprovals: metrics.firstApprovals,
         approvalsCompleted: metrics.approvalsCompleted,
+        clientApprovals: metrics.clientApprovals,
         reworkEvents: metrics.reworkEvents,
       },
   };
@@ -255,10 +281,18 @@ async function buildUserReport(params: {
   period: ReportPeriod;
   scopeSummary: ReportScopeSummary | null;
   scopeEntries: ReportScopeEntry[];
+  currentScore: number | null;
+  priorPeriodScore: number | null;
 }) {
-  const scoreAvailable = false;
-  const missingFields = getMissingFields(params.user, scoreAvailable);
   const currentMetrics = sumMetrics(params.currentActivityUsers);
+  const wowScoreDelta =
+    params.currentScore !== null && params.priorPeriodScore !== null ? params.currentScore - params.priorPeriodScore : null;
+  const status = getScoreStatus(currentMetrics, params.currentScore, params.priorPeriodScore);
+  const missingFields = getMissingFields(params.user, {
+    scoreAvailable: params.currentScore !== null,
+    priorPeriodScoreAvailable: params.priorPeriodScore !== null,
+    wowScoreDeltaAvailable: wowScoreDelta !== null,
+  });
 
   const reportBase: Omit<NormalizedUserReport, "html" | "templateMode"> = {
     userId: params.user.userId,
@@ -281,14 +315,11 @@ async function buildUserReport(params: {
       reworkEvents: currentMetrics.reworkEvents,
       activeDaysCount: null,
       lastActivityTs: null,
-      score: null,
-      priorPeriodScore: params.priorActivityUsers.length > 0 ? null : null,
-      wowScoreDelta: null,
+      score: params.currentScore,
+      priorPeriodScore: params.priorPeriodScore,
+      wowScoreDelta,
     },
-    status: {
-      label: null,
-      color: null,
-    },
+    status,
     content: {
       lede: "",
       observation: "",
@@ -338,9 +369,13 @@ export async function buildApiReportResult(params: {
   priorBiweeklyActivity: ActivitySummaryResponse;
   includeSuperAdminReports?: boolean;
   baseWarnings?: ValidationMessage[];
+  priorWeeklyAvailable?: boolean;
+  priorBiweeklyAvailable?: boolean;
 }) {
   const warnings: ValidationMessage[] = [...(params.baseWarnings ?? [])];
   const includeSuperAdminReports = params.includeSuperAdminReports ?? true;
+  const priorWeeklyAvailable = params.priorWeeklyAvailable ?? true;
+  const priorBiweeklyAvailable = params.priorBiweeklyAvailable ?? true;
   const directory = flattenOrganizationTree(params.organizationTree);
   const directoryUsers = Array.from(directory.values());
   const eligibleSupportedUsers = sortUsers(
@@ -406,6 +441,10 @@ export async function buildApiReportResult(params: {
       }
 
       const priorActivityUser = priorWeeklyActivityByUserId.get(user.userId);
+      const currentMetrics = getActivityMetrics(currentActivityUser);
+      const priorMetrics = priorActivityUser ? getActivityMetrics(priorActivityUser) : getActivityMetrics();
+      const currentScore = calculateTeamMemberScore(currentMetrics);
+      const priorPeriodScore = priorWeeklyAvailable ? calculateTeamMemberScore(priorMetrics) : null;
       const report = await buildUserReport({
         user,
         reportRole: user.role,
@@ -414,6 +453,8 @@ export async function buildApiReportResult(params: {
         period: params.weeklyPeriod,
         scopeSummary: null,
         scopeEntries: [],
+        currentScore,
+        priorPeriodScore,
       });
 
       reports.push(report);
@@ -423,15 +464,62 @@ export async function buildApiReportResult(params: {
     if (user.role === "business_owner") {
       const eligibleChildren = getEligibleAccountManagementChildren(directoryUsers, user.userId);
       const activeChildren = eligibleChildren.filter((child) => weeklyActivityByUserId.has(child.userId));
+      const activeChildMetrics = activeChildren
+        .map((child) => weeklyActivityByUserId.get(child.userId))
+        .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser))
+        .map((activityUser) => getActivityMetrics(activityUser));
+      const priorChildMetrics = eligibleChildren
+        .map((child) => priorWeeklyActivityByUserId.get(child.userId))
+        .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser))
+        .map((activityUser) => getActivityMetrics(activityUser));
+      const currentAggregateMetrics = sumMetrics(
+        activeChildren
+          .map((child) => weeklyActivityByUserId.get(child.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      );
+      const priorAggregateMetrics = sumMetrics(
+        eligibleChildren
+          .map((child) => priorWeeklyActivityByUserId.get(child.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      );
       const scopeSummary: ReportScopeSummary = {
         role: "business_owner",
         eligibleChildCount: eligibleChildren.length,
         activeChildCount: activeChildren.length,
+        teamSize: eligibleChildren.length,
+        managerCount: null,
         emptyStateMessage: buildEmptyStateMessage("business_owner", eligibleChildren.length, activeChildren.length),
       };
       const scopeEntries = eligibleChildren
-        .map((child) => toScopeEntry(child, weeklyActivityByUserId.get(child.userId)))
+        .map((child) => {
+          const currentActivityUser = weeklyActivityByUserId.get(child.userId);
+          const priorActivityUser = priorWeeklyActivityByUserId.get(child.userId);
+          const childCurrentMetrics = currentActivityUser ? getActivityMetrics(currentActivityUser) : getActivityMetrics();
+          const childPriorMetrics = priorActivityUser ? getActivityMetrics(priorActivityUser) : getActivityMetrics();
+          const childScore = currentActivityUser ? calculateTeamMemberScore(childCurrentMetrics) : null;
+          const childPriorScore = priorWeeklyAvailable ? calculateTeamMemberScore(childPriorMetrics) : null;
+
+          return toScopeEntry(child, currentActivityUser, {
+            score: childScore,
+            status: getScoreStatus(childCurrentMetrics, childScore, childPriorScore),
+          });
+        })
         .filter((entry): entry is ReportScopeEntry => entry !== null);
+      const currentScore =
+        scopeSummary.emptyStateMessage === null
+          ? calculateBusinessOwnerScore({
+              eligibleChildCount: eligibleChildren.length,
+              activeChildMetrics,
+              aggregateMetrics: currentAggregateMetrics,
+            })
+          : null;
+      const priorPeriodScore = priorWeeklyAvailable
+        ? calculateBusinessOwnerScore({
+            eligibleChildCount: eligibleChildren.length,
+            activeChildMetrics: priorChildMetrics,
+            aggregateMetrics: priorAggregateMetrics,
+          })
+        : null;
       const report = await buildUserReport({
         user,
         reportRole: "business_owner",
@@ -444,6 +532,8 @@ export async function buildApiReportResult(params: {
         period: params.weeklyPeriod,
         scopeSummary,
         scopeEntries,
+        currentScore,
+        priorPeriodScore,
       });
 
       if (scopeSummary.emptyStateMessage) {
@@ -458,35 +548,123 @@ export async function buildApiReportResult(params: {
     const activeChildren = eligibleChildren.filter((child) =>
       getEligibleAccountManagementChildren(directoryUsers, child.userId).some((teamMember) => biweeklyActivityByUserId.has(teamMember.userId)),
     );
+    const businessOwnerRollups = eligibleChildren.map((child) => {
+      const childTeamMembers = getEligibleAccountManagementChildren(directoryUsers, child.userId);
+      const currentChildActivityUsers = childTeamMembers
+        .map((teamMember) => biweeklyActivityByUserId.get(teamMember.userId))
+        .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser));
+      const priorChildActivityUsers = childTeamMembers
+        .map((teamMember) => priorBiweeklyActivityByUserId.get(teamMember.userId))
+        .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser));
+      const currentChildMetrics = currentChildActivityUsers.map((activityUser) => getActivityMetrics(activityUser));
+      const priorChildMetrics = priorChildActivityUsers.map((activityUser) => getActivityMetrics(activityUser));
+      const currentAggregateMetrics = sumMetrics(currentChildActivityUsers);
+      const priorAggregateMetrics = sumMetrics(priorChildActivityUsers);
+      const currentScore =
+        currentChildMetrics.length > 0
+          ? calculateBusinessOwnerScore({
+              eligibleChildCount: childTeamMembers.length,
+              activeChildMetrics: currentChildMetrics,
+              aggregateMetrics: currentAggregateMetrics,
+            })
+          : null;
+      const priorScore = priorBiweeklyAvailable
+        ? calculateBusinessOwnerScore({
+            eligibleChildCount: childTeamMembers.length,
+            activeChildMetrics: priorChildMetrics,
+            aggregateMetrics: priorAggregateMetrics,
+          })
+        : null;
+
+      return {
+        child,
+        eligibleChildCount: childTeamMembers.length,
+        activeChildCount: currentChildActivityUsers.length,
+        currentAggregateMetrics,
+        currentScore,
+        priorScore,
+      };
+    });
     const scopeSummary: ReportScopeSummary = {
       role: "super_admin",
       eligibleChildCount: eligibleChildren.length,
       activeChildCount: activeChildren.length,
+      teamSize: businessOwnerRollups.reduce((sum, rollup) => sum + rollup.eligibleChildCount, 0),
+      managerCount: eligibleChildren.length,
       emptyStateMessage: buildEmptyStateMessage("super_admin", eligibleChildren.length, activeChildren.length),
     };
-    const scopeEntries = eligibleChildren
-      .map((child) => {
-        const childTeamMembers = getEligibleAccountManagementChildren(directoryUsers, child.userId);
-        const currentChildActivityUsers = childTeamMembers
-          .map((teamMember) => biweeklyActivityByUserId.get(teamMember.userId))
-          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser));
-        const childMetrics = sumMetrics(currentChildActivityUsers);
-
-        return toScopeEntry(
-          child,
-          undefined,
-          {
-            loginCount: childMetrics.loginCount,
-            projectsConfirmed: childMetrics.projectsConfirmed,
-            pipelineEntriesCreated: childMetrics.pipelineEntriesCreated,
-            estimatesSubmitted: childMetrics.estimatesSubmitted,
-            approvalsCompleted: childMetrics.approvalsCompleted,
-            reworkEvents: childMetrics.reworkEvents,
+    const scopeEntries = businessOwnerRollups
+      .map((rollup) => {
+        return toScopeEntry(rollup.child, undefined, {
+          metricsOverride: {
+            loginCount: rollup.currentAggregateMetrics.loginCount,
+            projectsConfirmed: rollup.currentAggregateMetrics.projectsConfirmed,
+            pipelineEntriesCreated: rollup.currentAggregateMetrics.pipelineEntriesCreated,
+            estimatesCreated: rollup.currentAggregateMetrics.estimatesCreated,
+            estimatesSubmitted: rollup.currentAggregateMetrics.estimatesSubmitted,
+            sentForBusinessOwnerApproval: rollup.currentAggregateMetrics.sentForBusinessOwnerApproval,
+            firstApprovals: rollup.currentAggregateMetrics.firstApprovals,
+            approvalsCompleted: rollup.currentAggregateMetrics.approvalsCompleted,
+            clientApprovals: rollup.currentAggregateMetrics.clientApprovals,
+            reworkEvents: rollup.currentAggregateMetrics.reworkEvents,
           },
-          currentChildActivityUsers.length > 0,
-        );
+          hasActivityOverride: rollup.activeChildCount > 0,
+          score: rollup.currentScore,
+          status: getScoreStatus(rollup.currentAggregateMetrics, rollup.currentScore, rollup.priorScore),
+          activeDisplay: `${rollup.activeChildCount} / ${rollup.eligibleChildCount}`,
+        });
       })
       .filter((entry): entry is ReportScopeEntry => entry !== null);
+    const currentAggregateMetrics = sumMetrics(
+      eligibleChildren.flatMap((child) =>
+        getEligibleAccountManagementChildren(directoryUsers, child.userId)
+          .map((teamMember) => biweeklyActivityByUserId.get(teamMember.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      ),
+    );
+    const priorAggregateMetrics = sumMetrics(
+      eligibleChildren.flatMap((child) =>
+        getEligibleAccountManagementChildren(directoryUsers, child.userId)
+          .map((teamMember) => priorBiweeklyActivityByUserId.get(teamMember.userId))
+          .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser)),
+      ),
+    );
+    const currentBusinessOwnerScores = businessOwnerRollups
+      .map((rollup) => rollup.currentScore)
+      .filter((score): score is number => score !== null);
+    const priorBusinessOwnerScores = priorBiweeklyAvailable
+      ? eligibleChildren
+          .map((child) => {
+            const childTeamMembers = getEligibleAccountManagementChildren(directoryUsers, child.userId);
+            const priorChildActivityUsers = childTeamMembers
+              .map((teamMember) => priorBiweeklyActivityByUserId.get(teamMember.userId))
+              .filter((activityUser): activityUser is ActivityUserSummary => Boolean(activityUser));
+
+            return calculateBusinessOwnerScore({
+              eligibleChildCount: childTeamMembers.length,
+              activeChildMetrics: priorChildActivityUsers.map((activityUser) => getActivityMetrics(activityUser)),
+              aggregateMetrics: sumMetrics(priorChildActivityUsers),
+            });
+          })
+          .filter((score) => score > 0)
+      : [];
+    const currentScore =
+      scopeSummary.emptyStateMessage === null
+        ? calculateSuperAdminScore({
+            eligibleBusinessOwnerCount: eligibleChildren.length,
+            activeBusinessOwnerCount: activeChildren.length,
+            businessOwnerScores: currentBusinessOwnerScores,
+            aggregateMetrics: currentAggregateMetrics,
+          })
+        : null;
+    const priorPeriodScore = priorBiweeklyAvailable
+      ? calculateSuperAdminScore({
+          eligibleBusinessOwnerCount: eligibleChildren.length,
+          activeBusinessOwnerCount: priorBusinessOwnerScores.length,
+          businessOwnerScores: priorBusinessOwnerScores,
+          aggregateMetrics: priorAggregateMetrics,
+        })
+      : null;
     const report = await buildUserReport({
       user,
       reportRole: "super_admin",
@@ -503,6 +681,8 @@ export async function buildApiReportResult(params: {
       period: params.biweeklyPeriod,
       scopeSummary,
       scopeEntries,
+      currentScore,
+      priorPeriodScore,
     });
 
     if (scopeSummary.emptyStateMessage) {
