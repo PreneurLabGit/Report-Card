@@ -332,6 +332,9 @@ const colors = {
   orangeTint: "#FDF3E5",
 };
 
+const SALTHUB_SUPPORT_LABEL = "Salt Hub Support";
+const SALTHUB_SUPPORT_URL = "https://support.saltxcai.com/";
+
 function metricCell(params: {
   value: string;
   label: string;
@@ -508,9 +511,13 @@ function compareTable(rows: Array<{ name: string; status: string; score: string;
 }
 
 function footerBlock(lines: string[]) {
+  const supportLinkHtml = `<a href="${SALTHUB_SUPPORT_URL}" target="_blank" rel="noopener noreferrer" style="color:${colors.faint};text-decoration:underline;">${escapeHtml(SALTHUB_SUPPORT_LABEL)}</a>`;
+
   return `<tr>
     <td style="padding-top:30px;font-family:Arial, Helvetica, sans-serif;font-size:12px;line-height:1.55;color:${colors.faint};text-align:center;">
-      ${lines.map((line) => formatMultilineText(line)).join("<br />")}
+      ${lines
+        .map((line) => formatMultilineText(line).replace(escapeHtml(SALTHUB_SUPPORT_LABEL), supportLinkHtml))
+        .join("<br />")}
     </td>
   </tr>`;
 }
