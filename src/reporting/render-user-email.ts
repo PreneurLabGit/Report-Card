@@ -347,6 +347,10 @@ function buildLeaderManagerRows(entries: ReportScopeEntry[]) {
   return rows;
 }
 
+function getTeamMemberApprovalsReceived(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
+  return report.metrics.firstApprovals;
+}
+
 const colors = {
   ink: "#1A1A1A",
   body: "#2B2B2B",
@@ -593,7 +597,7 @@ function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templ
   const lastActivityConfigured = report.metrics.lastActivityTs !== null;
   const wowConfigured = report.metrics.wowScoreDelta !== null && report.metrics.priorPeriodScore !== null;
   const estimatesCreatedConfigured = report.metrics.estimatesCreated !== null;
-  const approvalsReceivedConfigured = report.metrics.approvalsCompleted > 0;
+  const approvalsReceived = getTeamMemberApprovalsReceived(report);
 
   const body = `
     ${headerBlock({
@@ -657,7 +661,7 @@ function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templ
             color: colors.tealDeep,
           },
           {
-            value: approvalsReceivedConfigured ? formatNumber(report.metrics.approvalsCompleted) : "N/A",
+            value: formatNumber(approvalsReceived),
             label: "Approvals received",
             color: colors.tealDeep,
           },

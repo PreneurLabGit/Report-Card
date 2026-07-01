@@ -94,6 +94,21 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("4");
   });
 
+  it("uses first approvals for the team member approvals received card", async () => {
+    const rendered = await renderUserEmailHtml({
+      ...baseReport,
+      metrics: {
+        ...baseReport.metrics,
+        firstApprovals: 5,
+        approvalsCompleted: 1,
+      },
+    });
+
+    expect(rendered.html).toContain("Approvals received");
+    expect(rendered.html).toContain(">5<");
+    expect(rendered.html).not.toContain(">1<");
+  });
+
   it("renders the business owner template with sample manager sections", async () => {
     const rendered = await renderUserEmailHtml({
       ...baseReport,
