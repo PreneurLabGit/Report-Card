@@ -296,6 +296,19 @@ function buildLeaderFrictionTheme() {
   };
 }
 
+function getScopeEntryStatusHtml(entry: ReportScopeEntry) {
+  const statusText = getScopeEntryStatusText(entry);
+
+  if (statusText === "N/A" || !entry.status.color) {
+    return escapeHtml(statusText);
+  }
+
+  const color =
+    entry.status.color === "green" ? colors.tealDeep : entry.status.color === "yellow" ? colors.orangeDeep : colors.pinkDeep;
+
+  return `<span style="font-weight:700;color:${color};">&bull; ${escapeHtml(statusText)}</span>`;
+}
+
 function buildLeaderManagerRows(entries: ReportScopeEntry[]) {
   const activeFirst = [...entries].sort((left, right) => {
     if (left.hasActivity !== right.hasActivity) {
@@ -307,14 +320,14 @@ function buildLeaderManagerRows(entries: ReportScopeEntry[]) {
 
   const rows = activeFirst.slice(0, 3).map((entry) => ({
     name: entry.userName,
-    status: getScopeEntryStatusText(entry),
+    statusHtml: getScopeEntryStatusHtml(entry),
     score: entry.score === null ? "N/A" : formatNumber(entry.score),
     active: entry.activeDisplay ?? "N/A",
     confirmed: entry.hasActivity ? formatNumber(entry.metrics.projectsConfirmed) : "0",
   }));
 
   while (rows.length < 3) {
-    rows.push({ name: "N/A", status: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" });
+    rows.push({ name: "N/A", statusHtml: "N/A", score: "N/A", active: "N/A", confirmed: "N/A" });
   }
 
   return rows;
@@ -490,12 +503,12 @@ function quoteBlock(text: string, attribution: string) {
   </table>`;
 }
 
-function compareTable(rows: Array<{ name: string; status: string; score: string; active: string; confirmed: string }>) {
+function compareTable(rows: Array<{ name: string; statusHtml: string; score: string; active: string; confirmed: string }>) {
   const bodyRows = rows
     .map(
       (row) => `<tr>
         <td style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.ink};font-weight:700;">${escapeHtml(row.name)}</td>
-        <td style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${escapeHtml(row.status)}</td>
+        <td style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${row.statusHtml}</td>
         <td align="right" style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};font-weight:700;">${escapeHtml(row.score)}</td>
         <td align="right" style="padding:14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${escapeHtml(row.active)}</td>
         <td align="right" style="padding:14px 0 14px 10px;border-top:1px solid ${colors.hairline};font-family:Arial, Helvetica, sans-serif;font-size:14px;line-height:1.5;color:${colors.body};">${escapeHtml(row.confirmed)}</td>
