@@ -145,6 +145,8 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("Worth doing this week");
     expect(rendered.html).toContain("What stands out");
     expect(rendered.html).toContain("Inferred friction theme");
+    expect(rendered.html).toContain("Estimates submitted");
+    expect(rendered.html).toContain(">4<");
     expect(rendered.html).toContain("Five estimates were created but not submitted.");
     expect(rendered.html).toContain("Recognize Jamie.");
     expect(rendered.html).toContain("AI-inferred from available activity patterns only");

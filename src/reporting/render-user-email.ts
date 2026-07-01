@@ -742,10 +742,13 @@ function renderBusinessOwnerHtml(report: Omit<NormalizedUserReport, "html" | "te
             color: colors.tealDeep,
           },
           {
-            value: "N/A",
+            value: formatNumber(report.metrics.estimatesSubmitted),
             label: "Estimates submitted",
-            sub: "team submission rollup not configured yet",
-            color: colors.orangeDeep,
+            sub:
+              report.metrics.estimatesSubmitted > 0
+                ? "based on currently available SaltHub activity"
+                : "no submitted estimates in this period",
+            color: colors.tealDeep,
           },
           {
             value: formatNumber(report.metrics.approvalsCompleted),
