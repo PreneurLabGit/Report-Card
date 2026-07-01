@@ -67,7 +67,6 @@ export async function POST(request: Request) {
     }
 
     const weekdayActivitySummaries: ActivitySummaryResponse[] = [];
-    let weekdayActivityAvailable = true;
 
     if (parsed.data.reportOf === "team_members") {
       dailyActivityResults.forEach((result, index) => {
@@ -76,7 +75,6 @@ export async function POST(request: Request) {
           return;
         }
 
-        weekdayActivityAvailable = false;
         const message =
           result.reason instanceof SaltHubApiError
             ? result.reason.message
@@ -85,10 +83,13 @@ export async function POST(request: Request) {
         baseWarnings.push({
           level: "info",
           code: `weekday_activity_unavailable_${weekdayDates[index]}`,
-          message: `Team Member daily activity derivation was unavailable for ${weekdayDates[index]}. ${message}`,
+          message: `Team Member daily activity lookup failed for ${weekdayDates[index]}. Available weekday lookups were still used for derivation. ${message}`,
         });
       });
     }
+
+    const weekdayActivityAvailable =
+      parsed.data.reportOf === "team_members" ? weekdayActivitySummaries.length > 0 : false;
 
     const result = await buildApiReportResult({
       selectedReportOf: parsed.data.reportOf,

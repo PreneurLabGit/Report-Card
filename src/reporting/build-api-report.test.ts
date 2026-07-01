@@ -292,6 +292,33 @@ describe("buildApiReportResult", () => {
     expect(teamMemberReport?.missingFields).toContain("lastActivityTs");
   });
 
+  it("derives team member daily fields from partial weekday results when at least one weekday summary succeeds", async () => {
+    const partialWeekdayActivitySummaries = weekdayActivitySummaries.slice(0, 4);
+
+    const result = await buildApiReportResult({
+      selectedReportOf: "team_members",
+      selectedWeekCount: 1,
+      selectedPeriod: weeklyPeriod,
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
+      organizationTree,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity,
+      priorBiweeklyActivity,
+      weekdayActivitySummaries: partialWeekdayActivitySummaries,
+      weekdayActivityAvailable: true,
+    });
+
+    const teamMemberReport = result.reports.find((report) => report.userId === "tm-1");
+    expect(teamMemberReport?.metrics.activeDaysCount).toBe(2);
+    expect(teamMemberReport?.metrics.lastActivityTs).toBe("2026-06-17");
+    expect(teamMemberReport?.missingFields).not.toContain("activeDaysCount");
+    expect(teamMemberReport?.missingFields).not.toContain("lastActivityTs");
+  });
+
   it("builds business owner reports from direct AM user weekly activity only", async () => {
     const result = await buildApiReportResult({
       selectedReportOf: "business_owner",
