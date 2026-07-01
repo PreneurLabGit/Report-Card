@@ -140,6 +140,58 @@ const priorWeeklyActivity: ActivitySummaryResponse = {
   ],
 };
 
+const weekdayActivitySummaries: ActivitySummaryResponse[] = [
+  {
+    start_date: "2026-06-15",
+    end_date: "2026-06-15",
+    users: [
+      {
+        userId: "tm-1",
+        userName: "Team Member",
+        userEmail: "tm@example.com",
+        loginCount: 1,
+      },
+    ],
+  },
+  {
+    start_date: "2026-06-16",
+    end_date: "2026-06-16",
+    users: [],
+  },
+  {
+    start_date: "2026-06-17",
+    end_date: "2026-06-17",
+    users: [
+      {
+        userId: "tm-1",
+        userName: "Team Member",
+        userEmail: "tm@example.com",
+        loginCount: 2,
+        otherActions: {
+          pipeline_create: 1,
+        },
+      },
+    ],
+  },
+  {
+    start_date: "2026-06-18",
+    end_date: "2026-06-18",
+    users: [],
+  },
+  {
+    start_date: "2026-06-19",
+    end_date: "2026-06-19",
+    users: [
+      {
+        userId: "tm-1",
+        userName: "Team Member",
+        userEmail: "tm@example.com",
+        loginCount: 3,
+      },
+    ],
+  },
+];
+
 const biweeklyActivity: ActivitySummaryResponse = {
   start_date: "2026-06-08",
   end_date: "2026-06-21",
@@ -197,16 +249,47 @@ describe("buildApiReportResult", () => {
       priorWeeklyActivity,
       biweeklyActivity,
       priorBiweeklyActivity,
+      weekdayActivitySummaries,
+      weekdayActivityAvailable: true,
     });
 
     expect(result.reports.map((report) => [report.userId, report.role])).toEqual([
       ["tm-2", "project_lead"],
       ["tm-1", "team_member"],
     ]);
+    const teamMemberReport = result.reports.find((report) => report.userId === "tm-1");
+    expect(teamMemberReport?.metrics.activeDaysCount).toBe(3);
+    expect(teamMemberReport?.metrics.lastActivityTs).toBe("2026-06-19");
+    expect(teamMemberReport?.missingFields).not.toContain("activeDaysCount");
+    expect(teamMemberReport?.missingFields).not.toContain("lastActivityTs");
     expect(result.summary.weeklyActivityUserCount).toBe(3);
     expect(result.summary.biweeklyActivityUserCount).toBe(4);
     expect(result.summary.skippedIneligibleActivityUserCount).toBe(1);
     expect(result.summary.skippedUnsupportedRoleUserCount).toBe(0);
+  });
+
+  it("keeps team member daily-derived fields unavailable when weekday summaries cannot be loaded", async () => {
+    const result = await buildApiReportResult({
+      selectedReportOf: "team_members",
+      selectedWeekCount: 1,
+      selectedPeriod: weeklyPeriod,
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
+      organizationTree,
+      weeklyActivity,
+      priorWeeklyActivity,
+      biweeklyActivity,
+      priorBiweeklyActivity,
+      weekdayActivityAvailable: false,
+    });
+
+    const teamMemberReport = result.reports.find((report) => report.userId === "tm-1");
+    expect(teamMemberReport?.metrics.activeDaysCount).toBeNull();
+    expect(teamMemberReport?.metrics.lastActivityTs).toBeNull();
+    expect(teamMemberReport?.missingFields).toContain("activeDaysCount");
+    expect(teamMemberReport?.missingFields).toContain("lastActivityTs");
   });
 
   it("builds business owner reports from direct AM user weekly activity only", async () => {

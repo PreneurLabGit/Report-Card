@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { buildApiReportResult } from "@/reporting/build-api-report";
 import { fetchActivitySummary, fetchOrganizationTree, SaltHubApiError } from "@/lib/salthub-api";
 import type { ActivitySummaryResponse, ValidationMessage, WeekCount } from "@/lib/domain";
-import { buildWeekCountPeriodEnding, calculatePriorPeriod } from "@/lib/report-period";
+import { buildWeekCountPeriodEnding, calculatePriorPeriod, listIsoDatesInRange } from "@/lib/report-period";
 import { reportGenerationRequestSchema } from "@/schemas/contracts";
 
 function createEmptyActivitySummary(startDate: string, endDate: string): ActivitySummaryResponse {
@@ -41,6 +41,12 @@ export async function POST(request: Request) {
     const [priorSelectedActivityResult] = await Promise.allSettled([
       fetchActivitySummary(priorSelectedPeriod.startDate, priorSelectedPeriod.endDate),
     ]);
+    const weekdayDates =
+      parsed.data.reportOf === "team_members" ? listIsoDatesInRange(selectedPeriod.startDate, selectedPeriod.endDate) : [];
+    const dailyActivityResults =
+      parsed.data.reportOf === "team_members"
+        ? await Promise.allSettled(weekdayDates.map((date) => fetchActivitySummary(date, date)))
+        : [];
 
     const priorSelectedActivity =
       priorSelectedActivityResult.status === "fulfilled"
@@ -57,6 +63,30 @@ export async function POST(request: Request) {
         level: "info",
         code: "prior_activity_unavailable",
         message: `Prior comparison data was unavailable. ${message}`,
+      });
+    }
+
+    const weekdayActivitySummaries: ActivitySummaryResponse[] = [];
+    let weekdayActivityAvailable = true;
+
+    if (parsed.data.reportOf === "team_members") {
+      dailyActivityResults.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          weekdayActivitySummaries.push(result.value);
+          return;
+        }
+
+        weekdayActivityAvailable = false;
+        const message =
+          result.reason instanceof SaltHubApiError
+            ? result.reason.message
+            : `Daily activity could not be loaded for ${weekdayDates[index]}.`;
+
+        baseWarnings.push({
+          level: "info",
+          code: `weekday_activity_unavailable_${weekdayDates[index]}`,
+          message: `Team Member daily activity derivation was unavailable for ${weekdayDates[index]}. ${message}`,
+        });
       });
     }
 
@@ -77,6 +107,8 @@ export async function POST(request: Request) {
       baseWarnings,
       priorWeeklyAvailable: priorSelectedAvailable,
       priorBiweeklyAvailable: priorSelectedAvailable,
+      weekdayActivitySummaries,
+      weekdayActivityAvailable,
     });
 
     return NextResponse.json(result);

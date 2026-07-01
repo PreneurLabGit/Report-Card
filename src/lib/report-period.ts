@@ -72,3 +72,15 @@ export function buildBiweeklyPeriodEnding(endDate: string) {
 export function buildWeekCountPeriodEnding(endDate: string, weekCount: 1 | 2) {
   return weekCount === 2 ? buildBiweeklyPeriodEnding(endDate) : buildWeeklyPeriodEnding(endDate);
 }
+
+export function listIsoDatesInRange(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const start = toUtcDate(startDate);
+  const end = toUtcDate(endDate);
+
+  for (let current = start; current.getTime() <= end.getTime(); current = new Date(current.getTime() + DAY_IN_MS)) {
+    dates.push(toIsoDate(current));
+  }
+
+  return dates;
+}

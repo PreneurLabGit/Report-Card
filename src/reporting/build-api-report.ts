@@ -20,6 +20,7 @@ import {
   calculateSuperAdminScore,
   calculateTeamMemberScore,
   getScoreStatus,
+  hasMeaningfulActivity,
   type ScoreMetrics,
 } from "@/lib/scoring";
 import { generateAiNarrativeContent } from "@/reporting/generate-ai-content";
@@ -170,6 +171,8 @@ function getMissingFields(
     scoreAvailable: boolean;
     priorPeriodScoreAvailable: boolean;
     wowScoreDeltaAvailable: boolean;
+    activeDaysAvailable: boolean;
+    lastActivityAvailable: boolean;
   },
 ) {
   const missing: string[] = [];
@@ -198,7 +201,13 @@ function getMissingFields(
     missing.push("wowScoreDelta");
   }
 
-  missing.push("activeDaysCount", "lastActivityTs");
+  if (!availability.activeDaysAvailable) {
+    missing.push("activeDaysCount");
+  }
+
+  if (!availability.lastActivityAvailable) {
+    missing.push("lastActivityTs");
+  }
 
   return missing;
 }
@@ -293,6 +302,8 @@ async function buildUserReport(params: {
   scopeEntries: ReportScopeEntry[];
   currentScore: number | null;
   priorPeriodScore: number | null;
+  activeDaysCount?: number | null;
+  lastActivityTs?: string | null;
 }) {
   const currentMetrics = sumMetrics(params.currentActivityUsers);
   const wowScoreDelta =
@@ -301,7 +312,9 @@ async function buildUserReport(params: {
   const missingFields = getMissingFields(params.user, {
     scoreAvailable: params.currentScore !== null,
     priorPeriodScoreAvailable: params.priorPeriodScore !== null,
-    wowScoreDeltaAvailable: wowScoreDelta !== null,
+      wowScoreDeltaAvailable: wowScoreDelta !== null,
+      activeDaysAvailable: params.activeDaysCount !== null && params.activeDaysCount !== undefined,
+      lastActivityAvailable: params.lastActivityTs !== null && params.lastActivityTs !== undefined,
   });
 
   const reportBase: Omit<NormalizedUserReport, "html" | "templateMode"> = {
@@ -323,8 +336,8 @@ async function buildUserReport(params: {
       clientApprovals: currentMetrics.clientApprovals,
       projectsConfirmed: currentMetrics.projectsConfirmed,
       reworkEvents: currentMetrics.reworkEvents,
-      activeDaysCount: null,
-      lastActivityTs: null,
+      activeDaysCount: params.activeDaysCount ?? null,
+      lastActivityTs: params.lastActivityTs ?? null,
       score: params.currentScore,
       priorPeriodScore: params.priorPeriodScore,
       wowScoreDelta,
@@ -384,11 +397,14 @@ export async function buildApiReportResult(params: {
   baseWarnings?: ValidationMessage[];
   priorWeeklyAvailable?: boolean;
   priorBiweeklyAvailable?: boolean;
+  weekdayActivitySummaries?: ActivitySummaryResponse[];
+  weekdayActivityAvailable?: boolean;
 }) {
   const warnings: ValidationMessage[] = [...(params.baseWarnings ?? [])];
   const includeSuperAdminReports = params.includeSuperAdminReports ?? true;
   const priorWeeklyAvailable = params.priorWeeklyAvailable ?? true;
   const priorBiweeklyAvailable = params.priorBiweeklyAvailable ?? true;
+  const weekdayActivityAvailable = params.weekdayActivityAvailable ?? false;
   const directory = flattenOrganizationTree(params.organizationTree);
   const directoryUsers = Array.from(directory.values());
   const eligibleSupportedUsers = sortUsers(
@@ -413,6 +429,9 @@ export async function buildApiReportResult(params: {
   const priorWeeklyActivityByUserId = new Map(params.priorWeeklyActivity.users.map((user) => [user.userId, user]));
   const biweeklyActivityByUserId = new Map(params.biweeklyActivity.users.map((user) => [user.userId, user]));
   const priorBiweeklyActivityByUserId = new Map(params.priorBiweeklyActivity.users.map((user) => [user.userId, user]));
+  const weekdayActivityByDate = new Map(
+    (params.weekdayActivitySummaries ?? []).map((summary) => [summary.start_date, new Map(summary.users.map((user) => [user.userId, user]))]),
+  );
 
   let skippedIneligibleActivityUserCount = 0;
   let skippedUsersWithoutDirectoryMatch = 0;
@@ -462,6 +481,18 @@ export async function buildApiReportResult(params: {
       const priorMetrics = priorActivityUser ? getActivityMetrics(priorActivityUser) : getActivityMetrics();
       const currentScore = calculateTeamMemberScore(currentMetrics);
       const priorPeriodScore = priorWeeklyAvailable ? calculateTeamMemberScore(priorMetrics) : null;
+      const dailyActivityEntries =
+        weekdayActivityAvailable && params.weekdayActivitySummaries
+          ? params.weekdayActivitySummaries.map((summary) => ({
+              date: summary.start_date,
+              activityUser: weekdayActivityByDate.get(summary.start_date)?.get(user.userId),
+            }))
+          : [];
+      const activeDayDates = dailyActivityEntries
+        .filter((entry) => entry.activityUser && hasMeaningfulActivity(getActivityMetrics(entry.activityUser)))
+        .map((entry) => entry.date);
+      const activeDaysCount = weekdayActivityAvailable ? activeDayDates.length : null;
+      const lastActivityTs = weekdayActivityAvailable && activeDayDates.length > 0 ? activeDayDates[activeDayDates.length - 1] : null;
       const report = await buildUserReport({
         user,
         reportRole: user.role,
@@ -472,6 +503,8 @@ export async function buildApiReportResult(params: {
         scopeEntries: [],
         currentScore,
         priorPeriodScore,
+        activeDaysCount,
+        lastActivityTs,
       });
 
       reports.push(report);

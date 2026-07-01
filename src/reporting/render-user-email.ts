@@ -96,6 +96,20 @@ function formatLastActiveDetail(lastActivityTs: string | null) {
     return "not configured yet";
   }
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(lastActivityTs)) {
+    const parsedDateOnly = new Date(`${lastActivityTs}T00:00:00Z`);
+
+    if (Number.isNaN(parsedDateOnly.getTime())) {
+      return "not configured yet";
+    }
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(parsedDateOnly);
+  }
+
   const parsed = new Date(lastActivityTs);
 
   if (Number.isNaN(parsed.getTime())) {
@@ -602,9 +616,9 @@ function renderTeamMemberHtml(report: Omit<NormalizedUserReport, "html" | "templ
             color: colors.tealDeep,
           },
           {
-            value: activeDaysConfigured ? formatNumber(report.metrics.activeDaysCount ?? 0) : "N/A",
+            value: activeDaysConfigured ? `${formatNumber(report.metrics.activeDaysCount ?? 0)} of 5` : "N/A",
             label: "Active days",
-            sub: activeDaysConfigured ? "tracked active days" : "not configured yet",
+            sub: activeDaysConfigured ? "weekday activity detected" : "not configured yet",
             color: colors.tealDeep,
           },
           {

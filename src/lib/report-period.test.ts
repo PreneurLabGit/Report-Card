@@ -6,6 +6,7 @@ import {
   buildWeekCountPeriodEnding,
   buildWeeklyPeriodEnding,
   calculatePriorPeriod,
+  listIsoDatesInRange,
 } from "@/lib/report-period";
 
 describe("report periods", () => {
@@ -61,5 +62,15 @@ describe("report periods", () => {
   it("derives the start date from the selected week count", () => {
     expect(buildWeekCountPeriodEnding("2026-06-24", 1).startDate).toBe("2026-06-22");
     expect(buildWeekCountPeriodEnding("2026-06-24", 2).startDate).toBe("2026-06-15");
+  });
+
+  it("lists every ISO date in a range", () => {
+    expect(listIsoDatesInRange("2026-06-15", "2026-06-19")).toEqual([
+      "2026-06-15",
+      "2026-06-16",
+      "2026-06-17",
+      "2026-06-18",
+      "2026-06-19",
+    ]);
   });
 });

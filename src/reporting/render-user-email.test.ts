@@ -40,8 +40,8 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
     clientApprovals: 0,
     projectsConfirmed: 2,
     reworkEvents: 0,
-    activeDaysCount: null,
-    lastActivityTs: null,
+    activeDaysCount: 5,
+    lastActivityTs: "2026-06-19",
     score: baseScore,
     priorPeriodScore: 72,
     wowScoreDelta: baseScore - 72,
@@ -87,6 +87,9 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("JUNE 16");
     expect(rendered.html).toContain("Logins");
     expect(rendered.html).toContain("6");
+    expect(rendered.html).toContain("5 of 5");
+    expect(rendered.html).toContain("Fri");
+    expect(rendered.html).toContain("Jun 19");
     expect(rendered.html).toContain("Estimates created");
     expect(rendered.html).toContain("4");
   });
