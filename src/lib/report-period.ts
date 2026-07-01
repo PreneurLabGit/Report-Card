@@ -68,3 +68,7 @@ export function buildBiweeklyPeriodEnding(endDate: string) {
 
   return buildReportPeriod(toIsoDate(start), toIsoDate(end));
 }
+
+export function buildWeekCountPeriodEnding(endDate: string, weekCount: 1 | 2) {
+  return weekCount === 2 ? buildBiweeklyPeriodEnding(endDate) : buildWeeklyPeriodEnding(endDate);
+}

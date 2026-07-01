@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 
 import { buildApiReportResult } from "@/reporting/build-api-report";
 import { fetchActivitySummary, fetchOrganizationTree, SaltHubApiError } from "@/lib/salthub-api";
-import type { ActivitySummaryResponse, ValidationMessage } from "@/lib/domain";
-import { buildBiweeklyPeriodEnding, buildWeeklyPeriodEnding, calculatePriorPeriod } from "@/lib/report-period";
+import type { ActivitySummaryResponse, ValidationMessage, WeekCount } from "@/lib/domain";
+import { buildWeekCountPeriodEnding, calculatePriorPeriod } from "@/lib/report-period";
 import { reportGenerationRequestSchema } from "@/schemas/contracts";
 
 function createEmptyActivitySummary(startDate: string, endDate: string): ActivitySummaryResponse {
@@ -28,93 +28,55 @@ export async function POST(request: Request) {
       );
     }
 
-    const weeklyPeriod = buildWeeklyPeriodEnding(parsed.data.endDate);
-    const priorWeeklyPeriod = calculatePriorPeriod(weeklyPeriod.startDate, weeklyPeriod.endDate);
-    const biweeklyPeriod = buildBiweeklyPeriodEnding(parsed.data.endDate);
-    const priorBiweeklyPeriod = calculatePriorPeriod(biweeklyPeriod.startDate, biweeklyPeriod.endDate);
+    const selectedWeekCount: WeekCount = parsed.data.reportOf === "super_admin" ? 2 : 1;
+    const selectedPeriod = buildWeekCountPeriodEnding(parsed.data.endDate, selectedWeekCount);
+    const priorSelectedPeriod = calculatePriorPeriod(selectedPeriod.startDate, selectedPeriod.endDate);
 
-    const [organizationTree, weeklyActivity] = await Promise.all([
+    const [organizationTree, selectedActivity] = await Promise.all([
       fetchOrganizationTree(),
-      fetchActivitySummary(weeklyPeriod.startDate, weeklyPeriod.endDate),
+      fetchActivitySummary(selectedPeriod.startDate, selectedPeriod.endDate),
     ]);
 
     const baseWarnings: ValidationMessage[] = [];
-    let includeSuperAdminReports = true;
-
-    const [priorWeeklyActivityResult, biweeklyActivityResult, priorBiweeklyActivityResult] = await Promise.allSettled([
-      fetchActivitySummary(priorWeeklyPeriod.startDate, priorWeeklyPeriod.endDate),
-      fetchActivitySummary(biweeklyPeriod.startDate, biweeklyPeriod.endDate),
-      fetchActivitySummary(priorBiweeklyPeriod.startDate, priorBiweeklyPeriod.endDate),
+    const [priorSelectedActivityResult] = await Promise.allSettled([
+      fetchActivitySummary(priorSelectedPeriod.startDate, priorSelectedPeriod.endDate),
     ]);
 
-    const priorWeeklyActivity =
-      priorWeeklyActivityResult.status === "fulfilled"
-        ? priorWeeklyActivityResult.value
-        : createEmptyActivitySummary(priorWeeklyPeriod.startDate, priorWeeklyPeriod.endDate);
-    const priorWeeklyAvailable = priorWeeklyActivityResult.status === "fulfilled";
+    const priorSelectedActivity =
+      priorSelectedActivityResult.status === "fulfilled"
+        ? priorSelectedActivityResult.value
+        : createEmptyActivitySummary(priorSelectedPeriod.startDate, priorSelectedPeriod.endDate);
+    const priorSelectedAvailable = priorSelectedActivityResult.status === "fulfilled";
 
-    if (!priorWeeklyAvailable) {
+    if (!priorSelectedAvailable) {
       const message =
-        priorWeeklyActivityResult.reason instanceof SaltHubApiError
-          ? priorWeeklyActivityResult.reason.message
-          : "Prior weekly comparison activity could not be loaded.";
+        priorSelectedActivityResult.reason instanceof SaltHubApiError
+          ? priorSelectedActivityResult.reason.message
+          : "Prior comparison activity could not be loaded.";
       baseWarnings.push({
         level: "info",
-        code: "prior_weekly_activity_unavailable",
-        message: `Prior weekly comparison data was unavailable. ${message}`,
-      });
-    }
-
-    const biweeklyActivity =
-      biweeklyActivityResult.status === "fulfilled"
-        ? biweeklyActivityResult.value
-        : createEmptyActivitySummary(biweeklyPeriod.startDate, biweeklyPeriod.endDate);
-
-    if (biweeklyActivityResult.status === "rejected") {
-      includeSuperAdminReports = false;
-      const message =
-        biweeklyActivityResult.reason instanceof SaltHubApiError
-          ? biweeklyActivityResult.reason.message
-          : "Bi-weekly leadership activity could not be loaded.";
-      baseWarnings.push({
-        level: "warning",
-        code: "biweekly_activity_unavailable",
-        message: `Super Admin reports were skipped because the bi-weekly activity window could not be loaded. ${message}`,
-      });
-    }
-
-    const priorBiweeklyActivity =
-      priorBiweeklyActivityResult.status === "fulfilled"
-        ? priorBiweeklyActivityResult.value
-        : createEmptyActivitySummary(priorBiweeklyPeriod.startDate, priorBiweeklyPeriod.endDate);
-    const priorBiweeklyAvailable = priorBiweeklyActivityResult.status === "fulfilled";
-
-    if (!priorBiweeklyAvailable) {
-      const message =
-        priorBiweeklyActivityResult.reason instanceof SaltHubApiError
-          ? priorBiweeklyActivityResult.reason.message
-          : "Prior bi-weekly comparison activity could not be loaded.";
-      baseWarnings.push({
-        level: "info",
-        code: "prior_biweekly_activity_unavailable",
-        message: `Prior bi-weekly comparison data was unavailable. ${message}`,
+        code: "prior_activity_unavailable",
+        message: `Prior comparison data was unavailable. ${message}`,
       });
     }
 
     const result = await buildApiReportResult({
-      weeklyPeriod,
-      priorWeeklyPeriod,
-      biweeklyPeriod,
-      priorBiweeklyPeriod,
+      selectedReportOf: parsed.data.reportOf,
+      selectedWeekCount,
+      selectedPeriod,
+      weeklyPeriod: selectedPeriod,
+      priorWeeklyPeriod: priorSelectedPeriod,
+      biweeklyPeriod: selectedPeriod,
+      priorBiweeklyPeriod: priorSelectedPeriod,
       organizationTree,
-      weeklyActivity,
-      priorWeeklyActivity,
-      biweeklyActivity,
-      priorBiweeklyActivity,
-      includeSuperAdminReports,
+      weeklyActivity: selectedActivity,
+      priorWeeklyActivity: priorSelectedActivity,
+      biweeklyActivity: selectedActivity,
+      priorBiweeklyActivity: priorSelectedActivity,
+      includeSuperAdminReports: parsed.data.reportOf === "super_admin",
       baseWarnings,
-      priorWeeklyAvailable,
-      priorBiweeklyAvailable,
+      priorWeeklyAvailable: priorSelectedAvailable,
+      priorBiweeklyAvailable: priorSelectedAvailable,
     });
 
     return NextResponse.json(result);

@@ -185,6 +185,9 @@ describe("flattenOrganizationTree", () => {
 describe("buildApiReportResult", () => {
   it("generates hierarchy-scoped reports using weekly and bi-weekly windows by role", async () => {
     const result = await buildApiReportResult({
+      selectedReportOf: "team_members",
+      selectedWeekCount: 1,
+      selectedPeriod: weeklyPeriod,
       weeklyPeriod,
       priorWeeklyPeriod,
       biweeklyPeriod,
@@ -197,9 +200,6 @@ describe("buildApiReportResult", () => {
     });
 
     expect(result.reports.map((report) => [report.userId, report.role])).toEqual([
-      ["sa-1", "super_admin"],
-      ["bo-1", "business_owner"],
-      ["bo-2", "business_owner"],
       ["tm-2", "project_lead"],
       ["tm-1", "team_member"],
     ]);
@@ -211,6 +211,9 @@ describe("buildApiReportResult", () => {
 
   it("builds business owner reports from direct AM user weekly activity only", async () => {
     const result = await buildApiReportResult({
+      selectedReportOf: "business_owner",
+      selectedWeekCount: 1,
+      selectedPeriod: weeklyPeriod,
       weeklyPeriod,
       priorWeeklyPeriod,
       biweeklyPeriod,
@@ -242,6 +245,9 @@ describe("buildApiReportResult", () => {
 
   it("builds super admin reports from bi-weekly business owner rollups", async () => {
     const result = await buildApiReportResult({
+      selectedReportOf: "super_admin",
+      selectedWeekCount: 2,
+      selectedPeriod: biweeklyPeriod,
       weeklyPeriod,
       priorWeeklyPeriod,
       biweeklyPeriod,
@@ -272,8 +278,11 @@ describe("buildApiReportResult", () => {
     ]);
   });
 
-  it("generates empty-state parent reports when eligible child activity is absent in the relevant cadence", async () => {
+  it("generates empty-state business owner reports when eligible child activity is absent in the relevant cadence", async () => {
     const result = await buildApiReportResult({
+      selectedReportOf: "business_owner",
+      selectedWeekCount: 1,
+      selectedPeriod: weeklyPeriod,
       weeklyPeriod,
       priorWeeklyPeriod,
       biweeklyPeriod,
@@ -293,16 +302,45 @@ describe("buildApiReportResult", () => {
 
     const ownerReport = result.reports.find((report) => report.userId === "bo-1");
     const idleOwnerReport = result.reports.find((report) => report.userId === "bo-2");
-    const superAdminReport = result.reports.find((report) => report.userId === "sa-1");
 
     expect(ownerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management user activity");
     expect(idleOwnerReport?.scopeSummary?.emptyStateMessage).toContain("No eligible Account Management users");
+    expect(result.summary.emptyStateReportCount).toBe(2);
+  });
+
+  it("generates empty-state super admin reports when no eligible business owner activity is found", async () => {
+    const result = await buildApiReportResult({
+      selectedReportOf: "super_admin",
+      selectedWeekCount: 2,
+      selectedPeriod: biweeklyPeriod,
+      weeklyPeriod,
+      priorWeeklyPeriod,
+      biweeklyPeriod,
+      priorBiweeklyPeriod,
+      organizationTree,
+      weeklyActivity: {
+        ...weeklyActivity,
+        users: weeklyActivity.users.filter((user) => !["tm-1", "tm-2"].includes(user.userId)),
+      },
+      priorWeeklyActivity,
+      biweeklyActivity: {
+        ...biweeklyActivity,
+        users: biweeklyActivity.users.filter((user) => !["tm-1", "tm-2", "tm-4"].includes(user.userId)),
+      },
+      priorBiweeklyActivity,
+    });
+
+    const superAdminReport = result.reports.find((report) => report.userId === "sa-1");
+
     expect(superAdminReport?.scopeSummary?.emptyStateMessage).toContain("No eligible business owner activity");
-    expect(result.summary.emptyStateReportCount).toBe(3);
+    expect(result.summary.emptyStateReportCount).toBe(1);
   });
 
   it("can skip super admin reports when bi-weekly activity is unavailable upstream", async () => {
     const result = await buildApiReportResult({
+      selectedReportOf: "business_owner",
+      selectedWeekCount: 1,
+      selectedPeriod: weeklyPeriod,
       weeklyPeriod,
       priorWeeklyPeriod,
       biweeklyPeriod,

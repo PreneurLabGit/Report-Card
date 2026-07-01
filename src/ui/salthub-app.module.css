@@ -325,6 +325,8 @@
 }
 
 .input {
+  width: 100%;
+  box-sizing: border-box;
   min-height: 46px;
   border: 1px solid #cbd5e1;
   border-radius: 12px;
@@ -332,6 +334,68 @@
   background: rgba(255, 255, 255, 0.96);
   color: #0f172a;
   font: inherit;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.input:hover {
+  border-color: #93c5fd;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 4px rgba(191, 219, 254, 0.45);
+}
+
+.input[readonly] {
+  color: #0f172a;
+  cursor: default;
+}
+
+.inputWithAction {
+  position: relative;
+  width: 100%;
+}
+
+.inputWithAction .input {
+  padding-right: 82px;
+}
+
+.pickerButton {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid #cfe0ff;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.pickerButton:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  transform: translateY(calc(-50% - 1px));
+}
+
+.hiddenDateInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .uploadBox {

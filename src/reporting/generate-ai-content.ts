@@ -3,21 +3,96 @@ import { z } from "zod";
 import { createStructuredOpenAiResponse, isOpenAiConfigured, OpenAiError } from "@/lib/openai";
 import type { NormalizedUserReport, ReportScopeEntry } from "@/lib/domain";
 
+const TEAM_MEMBER_LIMITS = {
+  lede: 280,
+  observation: 420,
+} as const;
+
+const BUSINESS_OWNER_LIMITS = {
+  lede: 320,
+  whatStandsOut: 520,
+  worthDoingItem: 220,
+  worthDoingCount: 3,
+} as const;
+
+const SUPER_ADMIN_LIMITS = {
+  lede: 320,
+  coachingItem: 260,
+  coachingCount: 3,
+} as const;
+
 const teamMemberContentSchema = z.object({
-  lede: z.string().min(1).max(280),
-  observation: z.string().min(1).max(420),
+  lede: z.string().min(1).max(TEAM_MEMBER_LIMITS.lede),
+  observation: z.string().min(1).max(TEAM_MEMBER_LIMITS.observation),
 });
 
 const businessOwnerContentSchema = z.object({
-  lede: z.string().min(1).max(320),
-  whatStandsOut: z.string().min(1).max(520),
-  worthDoingThisWeek: z.array(z.string().min(1).max(220)).length(3),
+  lede: z.string().min(1).max(BUSINESS_OWNER_LIMITS.lede),
+  whatStandsOut: z.string().min(1).max(BUSINESS_OWNER_LIMITS.whatStandsOut),
+  worthDoingThisWeek: z.array(z.string().min(1).max(BUSINESS_OWNER_LIMITS.worthDoingItem)).length(BUSINESS_OWNER_LIMITS.worthDoingCount),
 });
 
 const superAdminContentSchema = z.object({
-  lede: z.string().min(1).max(320),
-  coachingItems: z.array(z.string().min(1).max(260)).length(3),
+  lede: z.string().min(1).max(SUPER_ADMIN_LIMITS.lede),
+  coachingItems: z.array(z.string().min(1).max(SUPER_ADMIN_LIMITS.coachingItem)).length(SUPER_ADMIN_LIMITS.coachingCount),
 });
+
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function clipText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalized = normalizeWhitespace(value);
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return normalizeWhitespace(normalized.slice(0, maxLength));
+}
+
+function clipStringArray(value: unknown, itemMaxLength: number, exactLength: number) {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value
+    .slice(0, exactLength)
+    .map((item) => clipText(item, itemMaxLength))
+    .filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function parseTeamMemberContent(output: string) {
+  const parsed = JSON.parse(output) as Record<string, unknown>;
+  return teamMemberContentSchema.parse({
+    lede: clipText(parsed.lede, TEAM_MEMBER_LIMITS.lede),
+    observation: clipText(parsed.observation, TEAM_MEMBER_LIMITS.observation),
+  });
+}
+
+function parseBusinessOwnerContent(output: string) {
+  const parsed = JSON.parse(output) as Record<string, unknown>;
+  return businessOwnerContentSchema.parse({
+    lede: clipText(parsed.lede, BUSINESS_OWNER_LIMITS.lede),
+    whatStandsOut: clipText(parsed.whatStandsOut, BUSINESS_OWNER_LIMITS.whatStandsOut),
+    worthDoingThisWeek: clipStringArray(
+      parsed.worthDoingThisWeek,
+      BUSINESS_OWNER_LIMITS.worthDoingItem,
+      BUSINESS_OWNER_LIMITS.worthDoingCount,
+    ),
+  });
+}
+
+function parseSuperAdminContent(output: string) {
+  const parsed = JSON.parse(output) as Record<string, unknown>;
+  return superAdminContentSchema.parse({
+    lede: clipText(parsed.lede, SUPER_ADMIN_LIMITS.lede),
+    coachingItems: clipStringArray(parsed.coachingItems, SUPER_ADMIN_LIMITS.coachingItem, SUPER_ADMIN_LIMITS.coachingCount),
+  });
+}
 
 function toSafeScopeEntries(entries: ReportScopeEntry[]) {
   return entries.map((entry) => ({
@@ -38,6 +113,7 @@ function buildTeamMemberPrompt() {
     "Do not mention AI, the model, or hidden reasoning.",
     "Use only the provided metrics. Do not invent names, numbers, causes, dates, or activity.",
     "If the evidence is weak, stay neutral and simple.",
+    `Keep lede at or under ${TEAM_MEMBER_LIMITS.lede} characters and observation at or under ${TEAM_MEMBER_LIMITS.observation} characters.`,
     "Return valid JSON matching the required schema.",
   ].join(" ");
 }
@@ -49,6 +125,7 @@ function buildBusinessOwnerPrompt() {
     "Use only the provided metrics and listed user names. Do not invent names, numbers, inactivity windows, causes, or recommendations unsupported by the payload.",
     "Keep recommendations concrete but neutral. Do not shame users.",
     "If the evidence is weak, say so plainly and keep the guidance light.",
+    `Keep lede at or under ${BUSINESS_OWNER_LIMITS.lede} characters, whatStandsOut at or under ${BUSINESS_OWNER_LIMITS.whatStandsOut} characters, and each worthDoingThisWeek item at or under ${BUSINESS_OWNER_LIMITS.worthDoingItem} characters.`,
     "Return valid JSON matching the required schema.",
   ].join(" ");
 }
@@ -60,6 +137,7 @@ function buildSuperAdminPrompt() {
     "Use only the provided business-owner names and metrics. Do not invent names, scores, trends, or causes not present in the payload.",
     "Keep the language executive and diagnostic.",
     "If evidence is weak, stay neutral and avoid over-claiming.",
+    `Keep lede at or under ${SUPER_ADMIN_LIMITS.lede} characters and each coaching item at or under ${SUPER_ADMIN_LIMITS.coachingItem} characters.`,
     "Return valid JSON matching the required schema.",
   ].join(" ");
 }
@@ -81,8 +159,8 @@ async function generateTeamMemberContent(report: Omit<NormalizedUserReport, "htm
       type: "object",
       additionalProperties: false,
       properties: {
-        lede: { type: "string" },
-        observation: { type: "string" },
+        lede: { type: "string", minLength: 1, maxLength: TEAM_MEMBER_LIMITS.lede },
+        observation: { type: "string", minLength: 1, maxLength: TEAM_MEMBER_LIMITS.observation },
       },
       required: ["lede", "observation"],
     },
@@ -97,7 +175,7 @@ async function generateTeamMemberContent(report: Omit<NormalizedUserReport, "htm
     maxOutputTokens: 320,
   });
 
-  return teamMemberContentSchema.parse(JSON.parse(output));
+  return parseTeamMemberContent(output);
 }
 
 async function generateBusinessOwnerContent(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
@@ -107,13 +185,13 @@ async function generateBusinessOwnerContent(report: Omit<NormalizedUserReport, "
       type: "object",
       additionalProperties: false,
       properties: {
-        lede: { type: "string" },
-        whatStandsOut: { type: "string" },
+        lede: { type: "string", minLength: 1, maxLength: BUSINESS_OWNER_LIMITS.lede },
+        whatStandsOut: { type: "string", minLength: 1, maxLength: BUSINESS_OWNER_LIMITS.whatStandsOut },
         worthDoingThisWeek: {
           type: "array",
-          minItems: 3,
-          maxItems: 3,
-          items: { type: "string" },
+          minItems: BUSINESS_OWNER_LIMITS.worthDoingCount,
+          maxItems: BUSINESS_OWNER_LIMITS.worthDoingCount,
+          items: { type: "string", minLength: 1, maxLength: BUSINESS_OWNER_LIMITS.worthDoingItem },
         },
       },
       required: ["lede", "whatStandsOut", "worthDoingThisWeek"],
@@ -131,7 +209,7 @@ async function generateBusinessOwnerContent(report: Omit<NormalizedUserReport, "
     maxOutputTokens: 520,
   });
 
-  return businessOwnerContentSchema.parse(JSON.parse(output));
+  return parseBusinessOwnerContent(output);
 }
 
 async function generateSuperAdminContent(report: Omit<NormalizedUserReport, "html" | "templateMode">) {
@@ -141,12 +219,12 @@ async function generateSuperAdminContent(report: Omit<NormalizedUserReport, "htm
       type: "object",
       additionalProperties: false,
       properties: {
-        lede: { type: "string" },
+        lede: { type: "string", minLength: 1, maxLength: SUPER_ADMIN_LIMITS.lede },
         coachingItems: {
           type: "array",
-          minItems: 3,
-          maxItems: 3,
-          items: { type: "string" },
+          minItems: SUPER_ADMIN_LIMITS.coachingCount,
+          maxItems: SUPER_ADMIN_LIMITS.coachingCount,
+          items: { type: "string", minLength: 1, maxLength: SUPER_ADMIN_LIMITS.coachingItem },
         },
       },
       required: ["lede", "coachingItems"],
@@ -164,7 +242,7 @@ async function generateSuperAdminContent(report: Omit<NormalizedUserReport, "htm
     maxOutputTokens: 420,
   });
 
-  return superAdminContentSchema.parse(JSON.parse(output));
+  return parseSuperAdminContent(output);
 }
 
 export async function generateAiNarrativeContent(report: Omit<NormalizedUserReport, "html" | "templateMode">) {

@@ -57,6 +57,28 @@ function extractOutputText(payload: unknown) {
   return null;
 }
 
+function getIncompleteReason(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("incomplete_details" in payload)) {
+    return null;
+  }
+
+  const details = payload.incomplete_details;
+
+  if (!details || typeof details !== "object" || !("reason" in details) || typeof details.reason !== "string") {
+    return null;
+  }
+
+  return details.reason;
+}
+
+function getResponseStatus(payload: unknown) {
+  if (!payload || typeof payload !== "object" || !("status" in payload) || typeof payload.status !== "string") {
+    return null;
+  }
+
+  return payload.status;
+}
+
 export async function createStructuredOpenAiResponse(params: {
   schemaName: string;
   schema: Record<string, unknown>;
@@ -85,7 +107,10 @@ export async function createStructuredOpenAiResponse(params: {
       body: JSON.stringify({
         model: DEFAULT_REPORT_MODEL,
         store: false,
-        max_output_tokens: params.maxOutputTokens ?? 500,
+        max_output_tokens: Math.max(params.maxOutputTokens ?? 0, 900),
+        reasoning: {
+          effort: "low",
+        },
         input: [
           {
             role: "system",
@@ -107,6 +132,7 @@ export async function createStructuredOpenAiResponse(params: {
           },
         ],
         text: {
+          verbosity: "low",
           format: {
             type: "json_schema",
             strict: true,
@@ -128,6 +154,17 @@ export async function createStructuredOpenAiResponse(params: {
     }
 
     const payload = (await response.json()) as unknown;
+    const responseStatus = getResponseStatus(payload);
+    const incompleteReason = getIncompleteReason(payload);
+
+    if (responseStatus === "incomplete") {
+      throw new OpenAiError(
+        incompleteReason
+          ? `OpenAI narrative request was incomplete. Reason: ${incompleteReason}.`
+          : "OpenAI narrative request was incomplete.",
+      );
+    }
+
     const outputText = extractOutputText(payload);
 
     if (!outputText) {

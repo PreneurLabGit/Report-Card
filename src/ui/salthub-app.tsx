@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import type { ApiReportResult, EmailSendResponse, NormalizedUserReport } from "@/lib/domain";
+import { buildWeekCountPeriodEnding } from "@/lib/report-period";
+import type { ApiReportResult, EmailSendResponse, NormalizedUserReport, ReportAudience, WeekCount } from "@/lib/domain";
 import styles from "@/ui/salthub-app.module.css";
 
 type ToastTone = "success" | "error" | "warning" | "info";
@@ -20,6 +21,55 @@ type SendState = "idle" | "sending" | "sent" | "failed" | "skipped";
 interface SendStateEntry {
   state: SendState;
   detail?: string;
+}
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const FRIDAY_DATE_MIN = "2020-01-03";
+
+function toLocalMidnight(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function toDateFromIso(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function toIsoDate(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getPreviousOrSameFriday(value: Date) {
+  const dayOfWeek = value.getDay();
+  const offset = (dayOfWeek + 2) % 7;
+  return new Date(value.getTime() - offset * DAY_IN_MS);
+}
+
+function normalizeFridayDate(value: string, maxDate: string) {
+  const selected = getPreviousOrSameFriday(toDateFromIso(value));
+  const max = toDateFromIso(maxDate);
+
+  if (selected.getTime() > max.getTime()) {
+    return maxDate;
+  }
+
+  return toIsoDate(selected);
+}
+
+function getFixedWeekCount(reportOf: ReportAudience): WeekCount {
+  return reportOf === "super_admin" ? 2 : 1;
+}
+
+function formatDisplayDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(toDateFromIso(value));
 }
 
 function GenerationNotes({ result }: { result: ApiReportResult }) {
@@ -198,25 +248,30 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
 }
 
 function getDefaultDates() {
-  const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  const formatDateInputValue = (value: Date) => {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
+  const now = toLocalMidnight(new Date());
+  const end = getPreviousOrSameFriday(now);
 
   return {
-    endDate: formatDateInputValue(end),
-    maxDate: formatDateInputValue(end),
+    endDate: toIsoDate(end),
+    maxDate: toIsoDate(end),
   };
+}
+
+function getAudienceLabel(audience: ReportAudience) {
+  switch (audience) {
+    case "team_members":
+      return "Team Members";
+    case "business_owner":
+      return "Business Owner";
+    case "super_admin":
+      return "Super Admin";
+  }
 }
 
 export function SalthubApp() {
   const defaults = useMemo(() => getDefaultDates(), []);
   const [endDate, setEndDate] = useState(defaults.endDate);
+  const [reportOf, setReportOf] = useState<ReportAudience>("team_members");
   const [apiResult, setApiResult] = useState<ApiReportResult | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -225,11 +280,16 @@ export function SalthubApp() {
   const [isPending, startTransition] = useTransition();
   const [isSendingAll, startSendAllTransition] = useTransition();
   const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const endDateInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedApiReport = useMemo(
     () => apiResult?.reports.find((report) => report.userId === selectedReportId) ?? null,
     [apiResult, selectedReportId],
   );
+  const weekCount = useMemo(() => getFixedWeekCount(reportOf), [reportOf]);
+  const selectedPeriod = useMemo(() => buildWeekCountPeriodEnding(endDate, weekCount), [endDate, weekCount]);
+  const formattedStartDate = useMemo(() => formatDisplayDate(selectedPeriod.startDate), [selectedPeriod.startDate]);
+  const formattedEndDate = useMemo(() => formatDisplayDate(endDate), [endDate]);
 
   useEffect(() => {
     const toastTimers = toastTimersRef.current;
@@ -279,8 +339,11 @@ export function SalthubApp() {
             "content-type": "application/json",
           },
           body: JSON.stringify({
+            startDate: selectedPeriod.startDate,
             endDate,
             mode: "api",
+            reportOf,
+            weekCount,
           }),
         });
 
@@ -304,7 +367,7 @@ export function SalthubApp() {
 
         pushToast({
           title: "API reports generated",
-          message: `${(payload as ApiReportResult).reports.length} eligible hierarchy report${
+          message: `${(payload as ApiReportResult).reports.length} eligible ${getAudienceLabel((payload as ApiReportResult).selectedReportOf).toLowerCase()} report${
             (payload as ApiReportResult).reports.length === 1 ? "" : "s"
           } prepared.`,
           tone: "success",
@@ -455,15 +518,48 @@ export function SalthubApp() {
             </div>
 
             <div className={styles.formGrid}>
-              <label className={`${styles.field} ${styles.singleField}`}>
+              <label className={styles.field}>
+                <span>Start date</span>
+                <input type="text" value={formattedStartDate} readOnly className={styles.input} />
+              </label>
+              <label className={styles.field}>
                 <span>Report end date</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  max={defaults.maxDate}
-                  onChange={(event) => setEndDate(event.target.value)}
+                <div className={styles.inputWithAction}>
+                  <input type="text" value={formattedEndDate} readOnly className={styles.input} />
+                  <button
+                    type="button"
+                    className={styles.pickerButton}
+                    onClick={() => endDateInputRef.current?.showPicker?.()}
+                  >
+                    Pick
+                  </button>
+                  <input
+                    ref={endDateInputRef}
+                    type="date"
+                    value={endDate}
+                    min={FRIDAY_DATE_MIN}
+                    max={defaults.maxDate}
+                    step={7}
+                    onChange={(event) => setEndDate(normalizeFridayDate(event.target.value, defaults.maxDate))}
+                    className={styles.hiddenDateInput}
+                  />
+                </div>
+              </label>
+              <label className={styles.field}>
+                <span>Report of</span>
+                <select
+                  value={reportOf}
+                  onChange={(event) => setReportOf(event.target.value as ReportAudience)}
                   className={styles.input}
-                />
+                >
+                  <option value="super_admin">Super Admin</option>
+                  <option value="business_owner">Business Owner</option>
+                  <option value="team_members">Team Members</option>
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Week count</span>
+                <input type="text" value={weekCount === 2 ? "2 Weeks" : "1 Week"} readOnly className={styles.input} />
               </label>
             </div>
 
@@ -472,7 +568,7 @@ export function SalthubApp() {
                 {isPending ? "Generating..." : "Fetch and Generate"}
               </button>
               <p className={styles.helperText}>
-                Team Member and Business Owner reports start on Monday of the selected week. Super Admin reports start on Monday of the previous week.
+                Team Members and Business Owners use 1 week. Super Admin uses 2 weeks. Reporting windows run Monday to Friday.
               </p>
             </div>
 
@@ -492,7 +588,9 @@ export function SalthubApp() {
                       : "Live send enabled"}
                   </span>
                 ) : null}
-                <span className={styles.cardBadge}>Users Preview Queue</span>
+                <span className={styles.cardBadge}>
+                  {getAudienceLabel(apiResult?.selectedReportOf ?? reportOf)} - {apiResult?.selectedWeekCount ?? weekCount} Week
+                </span>
               </div>
             </div>
 
@@ -528,15 +626,11 @@ export function SalthubApp() {
 
                 <div className={styles.summaryGrid}>
                   <div className={styles.summaryTile}>
-                    <span>Weekly activity users</span>
-                    <strong>{apiResult.summary.weeklyActivityUserCount}</strong>
+                    <span>Activity users</span>
+                    <strong>{apiResult.selectedWeekCount === 2 ? apiResult.summary.biweeklyActivityUserCount : apiResult.summary.weeklyActivityUserCount}</strong>
                   </div>
                   <div className={styles.summaryTile}>
-                    <span>Bi-weekly activity users</span>
-                    <strong>{apiResult.summary.biweeklyActivityUserCount}</strong>
-                  </div>
-                  <div className={styles.summaryTile}>
-                    <span>Eligible hierarchy users</span>
+                    <span>Eligible {getAudienceLabel(apiResult.selectedReportOf)}</span>
                     <strong>{apiResult.summary.eligibleDirectoryUserCount}</strong>
                   </div>
                   <div className={styles.summaryTile}>
@@ -639,7 +733,9 @@ export function SalthubApp() {
             ) : (
               <div className={styles.emptyState}>
                 <strong>No API report cards generated yet</strong>
-                <p className={styles.muted}>Choose a reporting window and fetch the SaltHub APIs to populate the table.</p>
+                <p className={styles.muted}>
+                  Choose an end date, audience, and week count to populate the table.
+                </p>
               </div>
             )}
           </section>

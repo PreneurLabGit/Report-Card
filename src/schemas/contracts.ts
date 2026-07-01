@@ -36,6 +36,8 @@ export const reportGenerationRequestSchema = z
     endDate: z.string().date(),
     startDate: z.string().date().optional(),
     mode: z.literal("api").default("api"),
+    reportOf: z.enum(["team_members", "business_owner", "super_admin"]).default("team_members"),
+    weekCount: z.union([z.literal(1), z.literal(2)]).default(1),
   });
 
 const supportedReportRoleSchema = z.enum([

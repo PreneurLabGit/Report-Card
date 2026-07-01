@@ -5,11 +5,13 @@ import type {
   DirectoryUser,
   NormalizedUserReport,
   OrganizationTreeResponse,
+  ReportAudience,
   ReportPeriod,
   ReportScopeEntry,
   ReportScopeSummary,
   SupportedReportRole,
   ValidationMessage,
+  WeekCount,
 } from "@/lib/domain";
 import { getEmailDeliveryConfigSummary } from "@/lib/brevo";
 import { flattenOrganizationTree } from "@/lib/organization-tree";
@@ -152,6 +154,14 @@ function isEligibleReportUser(user: DirectoryUser, directoryUsers: DirectoryUser
 
 function isSupportedReportRole(role: string | null): role is SupportedReportRole {
   return role !== null && SUPPORTED_REPORT_ROLE_SET.has(role);
+}
+
+function matchesSelectedAudience(user: DirectoryUser, reportAudience: ReportAudience) {
+  if (reportAudience === "team_members") {
+    return isIndividualReportRole(user.role);
+  }
+
+  return user.role === reportAudience;
 }
 
 function getMissingFields(
@@ -358,6 +368,9 @@ function sortUsers(users: DirectoryUser[]) {
 }
 
 export async function buildApiReportResult(params: {
+  selectedReportOf: ReportAudience;
+  selectedWeekCount: WeekCount;
+  selectedPeriod: ReportPeriod;
   weeklyPeriod: ReportPeriod;
   priorWeeklyPeriod: ReportPeriod;
   biweeklyPeriod: ReportPeriod;
@@ -385,6 +398,10 @@ export async function buildApiReportResult(params: {
       }
 
       if (!includeSuperAdminReports && user.role === "super_admin") {
+        return false;
+      }
+
+      if (!matchesSelectedAudience(user, params.selectedReportOf)) {
         return false;
       }
 
@@ -764,6 +781,9 @@ export async function buildApiReportResult(params: {
   return {
     mode: "api",
     generatedAt: new Date().toISOString(),
+    selectedReportOf: params.selectedReportOf,
+    selectedWeekCount: params.selectedWeekCount,
+    selectedPeriod: params.selectedPeriod,
     weeklyPeriod: params.weeklyPeriod,
     priorWeeklyPeriod: params.priorWeeklyPeriod,
     biweeklyPeriod: params.biweeklyPeriod,

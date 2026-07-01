@@ -158,6 +158,10 @@ export type SupportedReportRole =
   | "business_owner"
   | "super_admin";
 
+export type ReportAudience = "team_members" | "business_owner" | "super_admin";
+
+export type WeekCount = 1 | 2;
+
 export interface ReportScopeEntry {
   userId: string;
   userName: string;
@@ -270,6 +274,9 @@ export interface EmailDeliveryConfigSummary {
 export interface ApiReportResult {
   mode: "api";
   generatedAt: string;
+  selectedReportOf: ReportAudience;
+  selectedWeekCount: WeekCount;
+  selectedPeriod: ReportPeriod;
   weeklyPeriod: ReportPeriod;
   priorWeeklyPeriod: ReportPeriod;
   biweeklyPeriod: ReportPeriod;
