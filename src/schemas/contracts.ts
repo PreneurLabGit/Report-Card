@@ -91,6 +91,7 @@ const normalizedUserReportSchema = z.object({
     whatStandsOut: z.string(),
     worthDoingThisWeek: z.array(z.string()),
     coachingItems: z.array(z.string()),
+    inferredFrictionTheme: z.string(),
   }),
   missingFields: z.array(z.string()),
   previewStatus: z.enum(["ready", "missing_data", "disabled"]),

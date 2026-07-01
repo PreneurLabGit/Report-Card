@@ -349,6 +349,7 @@ async function buildUserReport(params: {
       whatStandsOut: "",
       worthDoingThisWeek: [],
       coachingItems: [],
+      inferredFrictionTheme: "",
     },
     missingFields,
     previewStatus: buildPreviewStatus(params.user, missingFields),

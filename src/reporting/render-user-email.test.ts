@@ -68,6 +68,7 @@ const baseReport: Omit<NormalizedUserReport, "html" | "templateMode"> = {
     whatStandsOut: "",
     worthDoingThisWeek: [],
     coachingItems: [],
+    inferredFrictionTheme: "",
   },
   missingFields: [],
   previewStatus: "ready",
@@ -136,15 +137,17 @@ describe("renderUserEmailHtml", () => {
         lede: "A productive week on output.",
         whatStandsOut: "Five estimates were created but not submitted.",
         worthDoingThisWeek: ["Check in with Alex and Sam.", "Walk one draft estimate with the team.", "Recognize Jamie."],
+        inferredFrictionTheme: "Drafts are being opened but not consistently pushed through the submission step.",
       },
     });
 
     expect(rendered.templateMode).toBe("file-template");
     expect(rendered.html).toContain("Worth doing this week");
     expect(rendered.html).toContain("What stands out");
-    expect(rendered.html).toContain("Your friction note from last week");
+    expect(rendered.html).toContain("Inferred friction theme");
     expect(rendered.html).toContain("Five estimates were created but not submitted.");
     expect(rendered.html).toContain("Recognize Jamie.");
+    expect(rendered.html).toContain("AI-inferred from available activity patterns only");
   });
 
   it("renders the super admin template with sample leader sections", async () => {
@@ -171,6 +174,7 @@ describe("renderUserEmailHtml", () => {
         ...baseReport.content,
         lede: "Two managers look stable and one needs attention.",
         coachingItems: ["Review Casey Brown first.", "Ask Sam Liu about rework.", "Learn from Reese Okafor."],
+        inferredFrictionTheme: "Submission and rework patterns suggest some managers may be working around the estimate flow instead of through it.",
       },
       scopeEntries: [
         {
@@ -233,5 +237,6 @@ describe("renderUserEmailHtml", () => {
     expect(rendered.html).toContain("Review Casey Brown first.");
     expect(rendered.html).toContain("84");
     expect(rendered.html).toContain("3 / 5");
+    expect(rendered.html).toContain("AI-inferred from available activity patterns only");
   });
 });

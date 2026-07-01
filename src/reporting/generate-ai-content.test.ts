@@ -50,6 +50,7 @@ function makeBaseReport(role: NormalizedUserReport["role"]): Omit<NormalizedUser
       whatStandsOut: "",
       worthDoingThisWeek: [],
       coachingItems: [],
+      inferredFrictionTheme: "",
     },
     missingFields: [],
     previewStatus: "ready",
@@ -86,6 +87,7 @@ describe("generateAiNarrativeContent", () => {
         lede: "Team summary",
         whatStandsOut: "Something notable",
         worthDoingThisWeek: ["X".repeat(260), "Second action", "Third action"],
+        inferredFrictionTheme: "Drafts appear to be opened but not consistently pushed through submission.",
       }),
     );
 
@@ -94,5 +96,6 @@ describe("generateAiNarrativeContent", () => {
     expect(result.narrativeStatus).toBe("generated");
     expect(result.content.worthDoingThisWeek).toHaveLength(3);
     expect(result.content.worthDoingThisWeek[0].length).toBeLessThanOrEqual(220);
+    expect(result.content.inferredFrictionTheme.length).toBeGreaterThan(0);
   });
 });

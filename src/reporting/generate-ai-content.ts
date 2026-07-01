@@ -30,11 +30,13 @@ const businessOwnerContentSchema = z.object({
   lede: z.string().min(1).max(BUSINESS_OWNER_LIMITS.lede),
   whatStandsOut: z.string().min(1).max(BUSINESS_OWNER_LIMITS.whatStandsOut),
   worthDoingThisWeek: z.array(z.string().min(1).max(BUSINESS_OWNER_LIMITS.worthDoingItem)).length(BUSINESS_OWNER_LIMITS.worthDoingCount),
+  inferredFrictionTheme: z.string().min(1).max(320),
 });
 
 const superAdminContentSchema = z.object({
   lede: z.string().min(1).max(SUPER_ADMIN_LIMITS.lede),
   coachingItems: z.array(z.string().min(1).max(SUPER_ADMIN_LIMITS.coachingItem)).length(SUPER_ADMIN_LIMITS.coachingCount),
+  inferredFrictionTheme: z.string().min(1).max(320),
 });
 
 function normalizeWhitespace(value: string) {
@@ -83,6 +85,7 @@ function parseBusinessOwnerContent(output: string) {
       BUSINESS_OWNER_LIMITS.worthDoingItem,
       BUSINESS_OWNER_LIMITS.worthDoingCount,
     ),
+    inferredFrictionTheme: clipText(parsed.inferredFrictionTheme, 320),
   });
 }
 
@@ -91,6 +94,7 @@ function parseSuperAdminContent(output: string) {
   return superAdminContentSchema.parse({
     lede: clipText(parsed.lede, SUPER_ADMIN_LIMITS.lede),
     coachingItems: clipStringArray(parsed.coachingItems, SUPER_ADMIN_LIMITS.coachingItem, SUPER_ADMIN_LIMITS.coachingCount),
+    inferredFrictionTheme: clipText(parsed.inferredFrictionTheme, 320),
   });
 }
 
@@ -125,6 +129,7 @@ function buildBusinessOwnerPrompt() {
     "Use only the provided metrics and listed user names. Do not invent names, numbers, inactivity windows, causes, or recommendations unsupported by the payload.",
     "Keep recommendations concrete but neutral. Do not shame users.",
     "If the evidence is weak, say so plainly and keep the guidance light.",
+    "Generate an inferred friction theme from activity patterns only. Do not present it as a submitted note or direct quote.",
     `Keep lede at or under ${BUSINESS_OWNER_LIMITS.lede} characters, whatStandsOut at or under ${BUSINESS_OWNER_LIMITS.whatStandsOut} characters, and each worthDoingThisWeek item at or under ${BUSINESS_OWNER_LIMITS.worthDoingItem} characters.`,
     "Return valid JSON matching the required schema.",
   ].join(" ");
@@ -137,6 +142,7 @@ function buildSuperAdminPrompt() {
     "Use only the provided business-owner names and metrics. Do not invent names, scores, trends, or causes not present in the payload.",
     "Keep the language executive and diagnostic.",
     "If evidence is weak, stay neutral and avoid over-claiming.",
+    "Generate an inferred friction theme from activity patterns only. Do not present it as a submitted note or direct quote.",
     `Keep lede at or under ${SUPER_ADMIN_LIMITS.lede} characters and each coaching item at or under ${SUPER_ADMIN_LIMITS.coachingItem} characters.`,
     "Return valid JSON matching the required schema.",
   ].join(" ");
@@ -193,8 +199,9 @@ async function generateBusinessOwnerContent(report: Omit<NormalizedUserReport, "
           maxItems: BUSINESS_OWNER_LIMITS.worthDoingCount,
           items: { type: "string", minLength: 1, maxLength: BUSINESS_OWNER_LIMITS.worthDoingItem },
         },
+        inferredFrictionTheme: { type: "string", minLength: 1, maxLength: 320 },
       },
-      required: ["lede", "whatStandsOut", "worthDoingThisWeek"],
+      required: ["lede", "whatStandsOut", "worthDoingThisWeek", "inferredFrictionTheme"],
     },
     systemPrompt: buildBusinessOwnerPrompt(),
     userPayload: {
@@ -226,8 +233,9 @@ async function generateSuperAdminContent(report: Omit<NormalizedUserReport, "htm
           maxItems: SUPER_ADMIN_LIMITS.coachingCount,
           items: { type: "string", minLength: 1, maxLength: SUPER_ADMIN_LIMITS.coachingItem },
         },
+        inferredFrictionTheme: { type: "string", minLength: 1, maxLength: 320 },
       },
-      required: ["lede", "coachingItems"],
+      required: ["lede", "coachingItems", "inferredFrictionTheme"],
     },
     systemPrompt: buildSuperAdminPrompt(),
     userPayload: {
@@ -284,6 +292,7 @@ export async function generateAiNarrativeContent(report: Omit<NormalizedUserRepo
           lede: generated.lede,
           whatStandsOut: generated.whatStandsOut,
           worthDoingThisWeek: generated.worthDoingThisWeek,
+          inferredFrictionTheme: generated.inferredFrictionTheme,
         },
         narrativeStatus: "generated" as const,
         narrativeDetail: null,
@@ -297,6 +306,7 @@ export async function generateAiNarrativeContent(report: Omit<NormalizedUserRepo
           ...report.content,
           lede: generated.lede,
           coachingItems: generated.coachingItems,
+          inferredFrictionTheme: generated.inferredFrictionTheme,
         },
         narrativeStatus: "generated" as const,
         narrativeDetail: null,
