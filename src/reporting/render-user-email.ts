@@ -2,6 +2,8 @@ import type { NormalizedUserReport, ReportScopeEntry } from "@/lib/domain";
 import { formatNumber } from "@/lib/format";
 import { getScopeEntryStatusText } from "@/lib/scoring";
 
+const HIDDEN_REPORT_CARD_MISSING_FIELDS = new Set(["activeDaysCount", "lastActivityTs"]);
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -12,6 +14,10 @@ function escapeHtml(value: string) {
 
 function formatMultilineText(value: string) {
   return escapeHtml(value).replaceAll("\n", "<br />");
+}
+
+function getVisibleMissingFields(report: Pick<NormalizedUserReport, "missingFields">) {
+  return report.missingFields.filter((field) => !HIDDEN_REPORT_CARD_MISSING_FIELDS.has(field));
 }
 
 function humanizeRole(role: string | null) {
@@ -763,9 +769,10 @@ function renderSuperAdminHtml(report: Omit<NormalizedUserReport, "html" | "templ
 }
 
 function renderFallbackHtml(report: NormalizedUserReport) {
+  const visibleMissingFields = getVisibleMissingFields(report);
   const missingFields =
-    report.missingFields.length > 0
-      ? `<tr><td style="padding:0 0 20px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:12px 14px;border:1px solid #fcd34d;background:#fffbeb;font-family:Arial, Helvetica, sans-serif;color:#92400e;"><strong style="display:block;padding-bottom:6px;">Missing fields</strong>${escapeHtml(report.missingFields.join(", "))}</td></tr></table></td></tr>`
+    visibleMissingFields.length > 0
+      ? `<tr><td style="padding:0 0 20px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:12px 14px;border:1px solid #fcd34d;background:#fffbeb;font-family:Arial, Helvetica, sans-serif;color:#92400e;"><strong style="display:block;padding-bottom:6px;">Missing fields</strong>${escapeHtml(visibleMissingFields.join(", "))}</td></tr></table></td></tr>`
       : "";
 
   return wrapEmailDocument({

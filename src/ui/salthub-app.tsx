@@ -23,6 +23,7 @@ interface SendStateEntry {
   detail?: string;
 }
 
+const HIDDEN_REPORT_CARD_MISSING_FIELDS = new Set(["activeDaysCount", "lastActivityTs"]);
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const FRIDAY_DATE_MIN = "2020-01-03";
 
@@ -70,6 +71,10 @@ function formatDisplayDate(value: string) {
     month: "2-digit",
     year: "numeric",
   }).format(toDateFromIso(value));
+}
+
+function getVisibleMissingFields(report: Pick<NormalizedUserReport, "missingFields">) {
+  return report.missingFields.filter((field) => !HIDDEN_REPORT_CARD_MISSING_FIELDS.has(field));
 }
 
 function GenerationNotes({ result }: { result: ApiReportResult }) {
@@ -190,6 +195,8 @@ function ApiPreviewPlaceholder() {
 }
 
 function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
+  const visibleMissingFields = getVisibleMissingFields(report);
+
   return (
     <article className={styles.previewCard}>
       <header className={styles.previewHeader}>
@@ -206,10 +213,10 @@ function ApiReportPreview({ report }: { report: NormalizedUserReport }) {
         </span>
       </header>
 
-      {report.missingFields.length > 0 ? (
+      {visibleMissingFields.length > 0 ? (
         <section className={styles.noteBox}>
           <strong>Missing fields</strong>
-          <p>{report.missingFields.join(", ")}</p>
+          <p>{visibleMissingFields.join(", ")}</p>
         </section>
       ) : null}
 
